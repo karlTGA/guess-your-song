@@ -10,7 +10,7 @@ import SessionsPage from "./SessionsPage.js";
 function renderSessionsPage() {
     localStorage.setItem("token", "fake-jwt-token");
     return render(
-        <ConfigProvider theme={{ motion: false }}>
+        <ConfigProvider theme={{ token: { motion: false } }}>
             <AuthProvider>
                 <MemoryRouter>
                     <SessionsPage />

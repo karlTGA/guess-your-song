@@ -49,7 +49,7 @@ export default function PlaylistsPage() {
         description?: string;
     }) => {
         try {
-            await createPlaylist(values);
+            await createPlaylist({ ...values, songs: [] });
             message.success("Playlist created");
             setModalOpen(false);
             form.resetFields();

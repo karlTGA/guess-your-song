@@ -10,7 +10,7 @@ import PlaylistsPage from "./PlaylistsPage.js";
 function renderPlaylistsPage() {
     localStorage.setItem("token", "fake-jwt-token");
     return render(
-        <ConfigProvider theme={{ motion: false }}>
+        <ConfigProvider theme={{ token: { motion: false } }}>
             <AuthProvider>
                 <MemoryRouter>
                     <PlaylistsPage />

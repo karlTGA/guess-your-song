@@ -10,7 +10,7 @@ function renderPlayPage() {
     localStorage.setItem("playerName", "Alice");
     localStorage.setItem("gameCode", "ABC123");
     return render(
-        <ConfigProvider theme={{ motion: false }}>
+        <ConfigProvider theme={{ token: { motion: false } }}>
             <MemoryRouter initialEntries={["/game/ABC123/play"]}>
                 <Routes>
                     <Route path="/game/:code/play" element={<PlayPage />} />

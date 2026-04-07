@@ -7,7 +7,7 @@ import ResultsPage from "./ResultsPage.js";
 function renderResultsPage() {
     localStorage.setItem("playerName", "Alice");
     return render(
-        <ConfigProvider theme={{ motion: false }}>
+        <ConfigProvider theme={{ token: { motion: false } }}>
             <MemoryRouter initialEntries={["/game/ABC123/results"]}>
                 <Routes>
                     <Route

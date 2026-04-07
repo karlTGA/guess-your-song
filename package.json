@@ -10,6 +10,7 @@
         "build": "yarn workspaces foreach -Apt run build",
         "test": "vitest run --no-file-parallelism",
         "test:watch": "vitest --no-file-parallelism",
+        "typecheck": "yarn workspaces foreach -Apt run typecheck",
         "lint": "biome check .",
         "lint:fix": "biome check --fix ."
     },
