@@ -1,0 +1,134 @@
+import { useState, useEffect, useCallback } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { Typography, Button, Card, Tag, Space, Alert } from "antd";
+import { getGameState, placeSong } from "../../api.js";
+
+const { Title, Text } = Typography;
+
+interface SongInfo {
+    _id: string;
+    title: string;
+    artist: string;
+    year: number;
+}
+
+interface GameState {
+    status: string;
+    currentRound?: { songId: string; audioFilename: string; startedAt: string };
+    player: { name: string; timeline: SongInfo[]; score: number };
+    totalRounds: number;
+    currentRoundIndex: number;
+}
+
+interface PlacementResult {
+    correct: boolean;
+    song: SongInfo;
+}
+
+export default function PlayPage() {
+    const { code } = useParams<{ code: string }>();
+    const navigate = useNavigate();
+    const playerName = localStorage.getItem("playerName") || "";
+    const [gameState, setGameState] = useState<GameState | null>(null);
+    const [placementResult, setPlacementResult] = useState<PlacementResult | null>(null);
+
+    const loadState = useCallback(async () => {
+        if (!code || !playerName) return;
+        try {
+            const state = await getGameState(code, playerName);
+            setGameState(state);
+            if (state.status === "finished") {
+                navigate(`/game/${code}/results`);
+            }
+        } catch {
+            // ignore
+        }
+    }, [code, playerName, navigate]);
+
+    useEffect(() => {
+        loadState();
+    }, [loadState]);
+
+    const handlePlace = async (position: number) => {
+        if (!code || !playerName) return;
+        try {
+            const result = await placeSong(code, playerName, position);
+            setPlacementResult({ correct: result.correct, song: result.song });
+            setGameState((prev) =>
+                prev ? { ...prev, player: result.player, currentRoundIndex: prev.currentRoundIndex + 1 } : prev,
+            );
+        } catch {
+            // ignore
+        }
+    };
+
+    if (!gameState) {
+        return <div style={{ textAlign: "center", padding: 32 }}>Loading...</div>;
+    }
+
+    const { player, totalRounds, currentRoundIndex, currentRound } = gameState;
+    const audioSrc = currentRound ? `/audio/${currentRound.audioFilename}` : undefined;
+
+    return (
+        <div style={{ padding: 16, maxWidth: 600, margin: "0 auto" }}>
+            <Space direction="vertical" style={{ width: "100%" }} size="middle">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <Title level={4} style={{ margin: 0 }}>
+                        Round {currentRoundIndex + 1} of {totalRounds}
+                    </Title>
+                    <Tag color="blue">Score: {player.score}</Tag>
+                </div>
+
+                {audioSrc && (
+                    <Card size="small">
+                        <Text strong>Listen and place this song on your timeline:</Text>
+                        <audio controls src={audioSrc} style={{ width: "100%", marginTop: 8 }} />
+                    </Card>
+                )}
+
+                {placementResult && (
+                    <Alert
+                        type={placementResult.correct ? "success" : "error"}
+                        message={placementResult.correct ? "Correct!" : "Incorrect!"}
+                        description={`${placementResult.song.title} by ${placementResult.song.artist} (${placementResult.song.year})`}
+                        showIcon
+                    />
+                )}
+
+                <Card title="Your Timeline">
+                    {player.timeline.length === 0 && !placementResult ? (
+                        <div>
+                            <Text type="secondary">Your timeline is empty. Place your first song!</Text>
+                            <div style={{ marginTop: 8 }}>
+                                <Button onClick={() => handlePlace(0)} aria-label="Place Here">
+                                    Place Here
+                                </Button>
+                            </div>
+                        </div>
+                    ) : (
+                        <div>
+                            <Button size="small" onClick={() => handlePlace(0)} style={{ marginBottom: 4 }} aria-label="Place Here">
+                                Place Here
+                            </Button>
+                            {player.timeline.map((song, i) => (
+                                <div key={song._id}>
+                                    <Card size="small" style={{ marginBottom: 4 }}>
+                                        <Text strong>{song.title}</Text> — {song.artist} ({song.year})
+                                    </Card>
+                                    <Button
+                                        size="small"
+                                        onClick={() => handlePlace(i + 1)}
+                                        style={{ marginBottom: 4 }}
+                                        aria-label="Place Here"
+                                    >
+                                        Place Here
+                                    </Button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </Card>
+            </Space>
+        </div>
+    );
+}
