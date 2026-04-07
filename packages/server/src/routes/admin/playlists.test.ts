@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { buildTestApp } from "../../test/helpers.js";
 import type { FastifyInstance } from "fastify";
+import { beforeEach, describe, expect, it } from "vitest";
+import { buildTestApp } from "../../test/helpers.js";
 
 async function registerAndLogin(app: FastifyInstance) {
     await app.inject({

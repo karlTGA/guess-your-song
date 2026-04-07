@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest";
-import { beforeAll, afterEach, afterAll } from "vitest";
+import { afterAll, afterEach, beforeAll } from "vitest";
 import { server } from "./server.js";
 
 // Ant Design requires matchMedia
@@ -9,10 +9,10 @@ Object.defineProperty(window, "matchMedia", {
         matches: false,
         media: query,
         onchange: null,
-        addListener: () => { },
-        removeListener: () => { },
-        addEventListener: () => { },
-        removeEventListener: () => { },
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
         dispatchEvent: () => false,
     }),
 });

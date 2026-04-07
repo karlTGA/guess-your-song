@@ -1,8 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { buildTestApp } from "../../test/helpers.js";
+import fs from "node:fs";
 import type { FastifyInstance } from "fastify";
-import fs from "fs";
-import path from "path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { buildTestApp } from "../../test/helpers.js";
 
 const TEST_UPLOAD_DIR = "./test-uploads";
 
@@ -22,9 +21,14 @@ async function registerAndLogin(app: FastifyInstance) {
 
 function createMultipartPayload(
     fields: Record<string, string>,
-    file?: { fieldname: string; filename: string; content: Buffer; contentType: string },
+    file?: {
+        fieldname: string;
+        filename: string;
+        content: Buffer;
+        contentType: string;
+    },
 ) {
-    const boundary = "----TestBoundary" + Date.now();
+    const boundary = `----TestBoundary${Date.now()}`;
     const parts: Buffer[] = [];
 
     for (const [key, value] of Object.entries(fields)) {

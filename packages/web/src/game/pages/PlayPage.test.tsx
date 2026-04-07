@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { ConfigProvider } from "antd";
-import PlayPage from "./PlayPage.js";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../../api.js";
+import PlayPage from "./PlayPage.js";
 
 function renderPlayPage() {
     localStorage.setItem("playerName", "Alice");
@@ -14,7 +14,10 @@ function renderPlayPage() {
             <MemoryRouter initialEntries={["/game/ABC123/play"]}>
                 <Routes>
                     <Route path="/game/:code/play" element={<PlayPage />} />
-                    <Route path="/game/:code/results" element={<div>Results Page</div>} />
+                    <Route
+                        path="/game/:code/results"
+                        element={<div>Results Page</div>}
+                    />
                 </Routes>
             </MemoryRouter>
         </ConfigProvider>,
@@ -47,7 +50,9 @@ describe("PlayPage", () => {
         });
 
         // Click "Place Here" button (for position 0 in empty timeline)
-        const placeButtons = await screen.findAllByRole("button", { name: /place here/i });
+        const placeButtons = await screen.findAllByRole("button", {
+            name: /place here/i,
+        });
         await user.click(placeButtons[0]);
 
         await waitFor(() => {
@@ -63,7 +68,9 @@ describe("PlayPage", () => {
             expect(screen.getByText(/round 1/i)).toBeInTheDocument();
         });
 
-        const placeButtons = await screen.findAllByRole("button", { name: /place here/i });
+        const placeButtons = await screen.findAllByRole("button", {
+            name: /place here/i,
+        });
         await user.click(placeButtons[0]);
 
         await waitFor(() => {

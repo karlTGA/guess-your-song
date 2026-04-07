@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
 import { ConfigProvider } from "antd";
+import { MemoryRouter } from "react-router-dom";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import * as api from "../../api.js";
 import { AuthProvider } from "../../contexts/AuthContext.js";
 import SessionsPage from "./SessionsPage.js";
-import * as api from "../../api.js";
 
 function renderSessionsPage() {
     localStorage.setItem("token", "fake-jwt-token");
@@ -32,11 +32,15 @@ describe("SessionsPage", () => {
 
         // Wait for playlists to load in select
         await waitFor(() => {
-            expect(screen.getAllByText("Classic Hits").length).toBeGreaterThan(0);
+            expect(screen.getAllByText("Classic Hits").length).toBeGreaterThan(
+                0,
+            );
         });
 
         // Click create session button
-        await user.click(screen.getAllByRole("button", { name: /create session/i })[0]);
+        await user.click(
+            screen.getAllByRole("button", { name: /create session/i })[0],
+        );
 
         // Modal should appear
         await waitFor(() => {
@@ -51,7 +55,9 @@ describe("SessionsPage", () => {
 
         // Wait for dropdown option and click it
         await waitFor(() => {
-            expect(screen.getAllByText("Classic Hits").length).toBeGreaterThan(0);
+            expect(screen.getAllByText("Classic Hits").length).toBeGreaterThan(
+                0,
+            );
         });
         // Click the option in the dropdown
         const options = screen.getAllByText("Classic Hits");

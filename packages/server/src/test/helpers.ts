@@ -1,6 +1,6 @@
+import type { FastifyInstance } from "fastify";
 import { buildApp } from "../app.js";
 import type { AppConfig } from "../config.js";
-import type { FastifyInstance } from "fastify";
 
 export function getTestConfig(overrides?: Partial<AppConfig>): AppConfig {
     return {

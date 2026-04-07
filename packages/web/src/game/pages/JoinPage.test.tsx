@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { ConfigProvider } from "antd";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { beforeEach, describe, expect, it } from "vitest";
 import JoinPage from "./JoinPage.js";
 
 function renderJoinPage() {
@@ -11,7 +11,10 @@ function renderJoinPage() {
             <MemoryRouter initialEntries={["/"]}>
                 <Routes>
                     <Route path="/" element={<JoinPage />} />
-                    <Route path="/game/:code/play" element={<div>Play Page</div>} />
+                    <Route
+                        path="/game/:code/play"
+                        element={<div>Play Page</div>}
+                    />
                 </Routes>
             </MemoryRouter>
         </ConfigProvider>,
@@ -27,7 +30,9 @@ describe("JoinPage", () => {
         renderJoinPage();
         expect(screen.getByLabelText(/game code/i)).toBeInTheDocument();
         expect(screen.getByLabelText(/your name/i)).toBeInTheDocument();
-        expect(screen.getAllByRole("button", { name: /join/i }).length).toBeGreaterThan(0);
+        expect(
+            screen.getAllByRole("button", { name: /join/i }).length,
+        ).toBeGreaterThan(0);
     });
 
     it("joins session and navigates to play page on success", async () => {
@@ -52,7 +57,9 @@ describe("JoinPage", () => {
         await user.click(screen.getAllByRole("button", { name: /join/i })[0]);
 
         await waitFor(() => {
-            expect(screen.getAllByText(/not found|invalid|error/i).length).toBeGreaterThan(0);
+            expect(
+                screen.getAllByText(/not found|invalid|error/i).length,
+            ).toBeGreaterThan(0);
         });
     });
 });

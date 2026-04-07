@@ -1,7 +1,17 @@
-import { useState, useEffect, useCallback } from "react";
-import { Table, Button, Modal, Form, Input, Popconfirm, Space, Typography, message } from "antd";
-import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
-import { getPlaylists, createPlaylist, deletePlaylist } from "../../api.js";
+import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
+import {
+    Button,
+    Form,
+    Input,
+    Modal,
+    message,
+    Popconfirm,
+    Space,
+    Table,
+    Typography,
+} from "antd";
+import { useCallback, useEffect, useState } from "react";
+import { createPlaylist, deletePlaylist, getPlaylists } from "../../api.js";
 
 const { Title } = Typography;
 
@@ -34,7 +44,10 @@ export default function PlaylistsPage() {
         loadPlaylists();
     }, [loadPlaylists]);
 
-    const handleAdd = async (values: { name: string; description?: string }) => {
+    const handleAdd = async (values: {
+        name: string;
+        description?: string;
+    }) => {
         try {
             await createPlaylist(values);
             message.success("Playlist created");
@@ -62,14 +75,26 @@ export default function PlaylistsPage() {
         {
             title: "Songs",
             key: "songCount",
-            render: (_: unknown, record: Playlist) => String(record.songs.length),
+            render: (_: unknown, record: Playlist) =>
+                String(record.songs.length),
         },
         {
             title: "Actions",
             key: "actions",
             render: (_: unknown, record: Playlist) => (
-                <Popconfirm title="Delete this playlist?" onConfirm={() => handleDelete(record._id)} okText="Yes" cancelText="No">
-                    <Button danger icon={<DeleteOutlined />} aria-label="Delete">Delete</Button>
+                <Popconfirm
+                    title="Delete this playlist?"
+                    onConfirm={() => handleDelete(record._id)}
+                    okText="Yes"
+                    cancelText="No"
+                >
+                    <Button
+                        danger
+                        icon={<DeleteOutlined />}
+                        aria-label="Delete"
+                    >
+                        Delete
+                    </Button>
                 </Popconfirm>
             ),
         },
@@ -77,23 +102,47 @@ export default function PlaylistsPage() {
 
     return (
         <div>
-            <Space style={{ marginBottom: 16, display: "flex", justifyContent: "space-between" }}>
-                <Title level={4} style={{ margin: 0 }}>Playlists</Title>
-                <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>
+            <Space
+                style={{
+                    marginBottom: 16,
+                    display: "flex",
+                    justifyContent: "space-between",
+                }}
+            >
+                <Title level={4} style={{ margin: 0 }}>
+                    Playlists
+                </Title>
+                <Button
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    onClick={() => setModalOpen(true)}
+                >
                     Add Playlist
                 </Button>
             </Space>
 
-            <Table dataSource={playlists} columns={columns} rowKey="_id" loading={loading} />
+            <Table
+                dataSource={playlists}
+                columns={columns}
+                rowKey="_id"
+                loading={loading}
+            />
 
             <Modal
                 title="Add Playlist"
                 open={modalOpen}
                 onOk={() => form.submit()}
-                onCancel={() => { setModalOpen(false); form.resetFields(); }}
+                onCancel={() => {
+                    setModalOpen(false);
+                    form.resetFields();
+                }}
             >
                 <Form form={form} layout="vertical" onFinish={handleAdd}>
-                    <Form.Item label="Name" name="name" rules={[{ required: true }]}>
+                    <Form.Item
+                        label="Name"
+                        name="name"
+                        rules={[{ required: true }]}
+                    >
                         <Input />
                     </Form.Item>
                     <Form.Item label="Description" name="description">

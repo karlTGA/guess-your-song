@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { buildTestApp } from "../../test/helpers.js";
 import type { FastifyInstance } from "fastify";
+import { beforeEach, describe, expect, it } from "vitest";
+import { buildTestApp } from "../../test/helpers.js";
 
 async function registerAndLogin(app: FastifyInstance) {
     await app.inject({
@@ -72,14 +72,14 @@ describe("game placement and round flow", () => {
     let app: FastifyInstance;
     let token: string;
     let sessionCode: string;
-    let songs: { _id: string; title: string; year: number }[];
+    let _songs: { _id: string; title: string; year: number }[];
 
     beforeEach(async () => {
         app = await buildTestApp();
         token = await registerAndLogin(app);
         const result = await setupGame(app, token);
         sessionCode = result.code;
-        songs = result.songs;
+        _songs = result.songs;
     });
 
     it("player can place a song on their timeline", async () => {

@@ -1,5 +1,5 @@
+import { Alert, Button, Card, Form, Input, Typography } from "antd";
 import { useState } from "react";
-import { Form, Input, Button, Alert, Card, Typography } from "antd";
 import { useAuth } from "../../contexts/AuthContext.js";
 
 const { Title } = Typography;
@@ -24,17 +24,39 @@ export default function LoginPage() {
     return (
         <div style={{ maxWidth: 400, margin: "100px auto", padding: "0 16px" }}>
             <Card>
-                <Title level={3} style={{ textAlign: "center" }}>Admin Login</Title>
-                {error && <Alert message={error} type="error" showIcon style={{ marginBottom: 16 }} />}
+                <Title level={3} style={{ textAlign: "center" }}>
+                    Admin Login
+                </Title>
+                {error && (
+                    <Alert
+                        message={error}
+                        type="error"
+                        showIcon
+                        style={{ marginBottom: 16 }}
+                    />
+                )}
                 <Form layout="vertical" onFinish={onFinish}>
-                    <Form.Item label="Username" name="username" rules={[{ required: true }]}>
+                    <Form.Item
+                        label="Username"
+                        name="username"
+                        rules={[{ required: true }]}
+                    >
                         <Input />
                     </Form.Item>
-                    <Form.Item label="Password" name="password" rules={[{ required: true }]}>
+                    <Form.Item
+                        label="Password"
+                        name="password"
+                        rules={[{ required: true }]}
+                    >
                         <Input.Password />
                     </Form.Item>
                     <Form.Item>
-                        <Button type="primary" htmlType="submit" loading={loading} block>
+                        <Button
+                            type="primary"
+                            htmlType="submit"
+                            loading={loading}
+                            block
+                        >
                             Login
                         </Button>
                     </Form.Item>

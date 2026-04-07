@@ -1,9 +1,9 @@
-import crypto from "crypto";
-import { FastifyInstance } from "fastify";
+import crypto from "node:crypto";
+import { DEFAULT_GAME_CONFIG } from "@guess-your-song/shared";
+import type { FastifyInstance } from "fastify";
 import { GameSessionModel } from "../../models/GameSession.js";
 import { PlaylistModel } from "../../models/Playlist.js";
 import { authenticate } from "../../plugins/auth.js";
-import { DEFAULT_GAME_CONFIG } from "@guess-your-song/shared";
 
 function generateCode(): string {
     return crypto.randomBytes(3).toString("hex").toUpperCase();
@@ -63,9 +63,7 @@ export async function sessionRoutes(app: FastifyInstance) {
 
         const playlist = await PlaylistModel.findById(session.playlist);
         if (!playlist || playlist.songs.length === 0) {
-            return reply
-                .status(400)
-                .send({ error: "Playlist has no songs" });
+            return reply.status(400).send({ error: "Playlist has no songs" });
         }
 
         session.status = "playing";

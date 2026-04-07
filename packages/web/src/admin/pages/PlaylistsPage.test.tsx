@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
 import { ConfigProvider } from "antd";
+import { MemoryRouter } from "react-router-dom";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import * as api from "../../api.js";
 import { AuthProvider } from "../../contexts/AuthContext.js";
 import PlaylistsPage from "./PlaylistsPage.js";
-import * as api from "../../api.js";
 
 function renderPlaylistsPage() {
     localStorage.setItem("token", "fake-jwt-token");
@@ -29,7 +29,9 @@ describe("PlaylistsPage", () => {
         renderPlaylistsPage();
 
         await waitFor(() => {
-            expect(screen.getAllByText("Classic Hits").length).toBeGreaterThan(0);
+            expect(screen.getAllByText("Classic Hits").length).toBeGreaterThan(
+                0,
+            );
         });
     });
 
@@ -39,11 +41,15 @@ describe("PlaylistsPage", () => {
         renderPlaylistsPage();
 
         await waitFor(() => {
-            expect(screen.getAllByText("Classic Hits").length).toBeGreaterThan(0);
+            expect(screen.getAllByText("Classic Hits").length).toBeGreaterThan(
+                0,
+            );
         });
 
         // Click add button
-        await user.click(screen.getAllByRole("button", { name: /add playlist/i })[0]);
+        await user.click(
+            screen.getAllByRole("button", { name: /add playlist/i })[0],
+        );
 
         // Modal should appear
         await waitFor(() => {
@@ -51,7 +57,10 @@ describe("PlaylistsPage", () => {
         });
 
         const modal = screen.getByRole("dialog");
-        await user.type(within(modal).getByLabelText(/name/i), "My New Playlist");
+        await user.type(
+            within(modal).getByLabelText(/name/i),
+            "My New Playlist",
+        );
 
         // Submit
         await user.click(within(modal).getByRole("button", { name: /ok/i }));
@@ -69,10 +78,14 @@ describe("PlaylistsPage", () => {
         renderPlaylistsPage();
 
         await waitFor(() => {
-            expect(screen.getAllByText("Classic Hits").length).toBeGreaterThan(0);
+            expect(screen.getAllByText("Classic Hits").length).toBeGreaterThan(
+                0,
+            );
         });
 
-        const deleteButtons = screen.getAllByRole("button", { name: /delete/i });
+        const deleteButtons = screen.getAllByRole("button", {
+            name: /delete/i,
+        });
         await user.click(deleteButtons[0]);
 
         await waitFor(() => {

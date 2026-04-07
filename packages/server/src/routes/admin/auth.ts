@@ -1,5 +1,5 @@
-import { FastifyInstance } from "fastify";
 import bcrypt from "bcrypt";
+import type { FastifyInstance } from "fastify";
 import { AdminModel } from "../../models/Admin.js";
 
 export async function authRoutes(app: FastifyInstance) {

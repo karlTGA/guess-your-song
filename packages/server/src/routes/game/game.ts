@@ -1,4 +1,4 @@
-import { FastifyInstance } from "fastify";
+import type { FastifyInstance } from "fastify";
 import { GameSessionModel } from "../../models/GameSession.js";
 import { PlaylistModel } from "../../models/Playlist.js";
 import { SongModel } from "../../models/Song.js";
@@ -69,9 +69,7 @@ export async function gameRoutes(app: FastifyInstance) {
 
         return reply.send({
             status: session.status,
-            currentRound: currentRound
-                ? { songId: currentRound.songId }
-                : null,
+            currentRound: currentRound ? { songId: currentRound.songId } : null,
             player: {
                 name: player.name,
                 timeline: player.timeline,
@@ -118,7 +116,7 @@ export async function gameRoutes(app: FastifyInstance) {
         const timelineWithYears = await Promise.all(
             player.timeline.map(async (entry) => {
                 const song = await SongModel.findById(entry.songId);
-                return { songId: entry.songId.toString(), year: song!.year };
+                return { songId: entry.songId.toString(), year: song?.year };
             }),
         );
 
@@ -147,7 +145,7 @@ export async function gameRoutes(app: FastifyInstance) {
         if (nextRoundIndex < totalSongs) {
             session.currentRoundIndex = nextRoundIndex;
             session.rounds.push({
-                songId: playlist!.songs[nextRoundIndex],
+                songId: playlist?.songs[nextRoundIndex],
                 startedAt: new Date(),
             });
         } else {

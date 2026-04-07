@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { ConfigProvider } from "antd";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { beforeEach, describe, expect, it } from "vitest";
 import ResultsPage from "./ResultsPage.js";
 
 function renderResultsPage() {
@@ -10,7 +10,10 @@ function renderResultsPage() {
         <ConfigProvider theme={{ motion: false }}>
             <MemoryRouter initialEntries={["/game/ABC123/results"]}>
                 <Routes>
-                    <Route path="/game/:code/results" element={<ResultsPage />} />
+                    <Route
+                        path="/game/:code/results"
+                        element={<ResultsPage />}
+                    />
                 </Routes>
             </MemoryRouter>
         </ConfigProvider>,
@@ -26,15 +29,20 @@ describe("ResultsPage", () => {
         renderResultsPage();
 
         // Wait for player data to load (card title contains player name)
-        await waitFor(() => {
-            expect(screen.getByText(/Alice/)).toBeInTheDocument();
-        }, { timeout: 5000 });
+        await waitFor(
+            () => {
+                expect(screen.getByText(/Alice/)).toBeInTheDocument();
+            },
+            { timeout: 5000 },
+        );
 
         // Score should be displayed
         expect(screen.getAllByText(/2/).length).toBeGreaterThan(0);
 
         // Songs should appear in the timeline
-        expect(screen.getAllByText(/Bohemian Rhapsody/).length).toBeGreaterThan(0);
+        expect(screen.getAllByText(/Bohemian Rhapsody/).length).toBeGreaterThan(
+            0,
+        );
         expect(screen.getAllByText(/Billie Jean/).length).toBeGreaterThan(0);
     });
 });

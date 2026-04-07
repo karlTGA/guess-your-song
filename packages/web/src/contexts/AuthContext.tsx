@@ -1,4 +1,11 @@
-import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
+import {
+    createContext,
+    type ReactNode,
+    useCallback,
+    useContext,
+    useEffect,
+    useState,
+} from "react";
 import { login as apiLogin } from "../api.js";
 
 interface AuthState {
@@ -12,8 +19,12 @@ interface AuthState {
 const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-    const [token, setToken] = useState<string | null>(() => localStorage.getItem("token"));
-    const [username, setUsername] = useState<string | null>(() => localStorage.getItem("username"));
+    const [token, setToken] = useState<string | null>(() =>
+        localStorage.getItem("token"),
+    );
+    const [username, setUsername] = useState<string | null>(() =>
+        localStorage.getItem("username"),
+    );
 
     useEffect(() => {
         if (token) {
@@ -43,7 +54,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, []);
 
     return (
-        <AuthContext.Provider value={{ token, username, isAuthenticated: !!token, login, logout }}>
+        <AuthContext.Provider
+            value={{ token, username, isAuthenticated: !!token, login, logout }}
+        >
             {children}
         </AuthContext.Provider>
     );

@@ -1,6 +1,6 @@
-import fs from "fs";
-import path from "path";
-import crypto from "crypto";
+import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
 
 export class StorageService {
     private uploadDir: string;
@@ -12,10 +12,7 @@ export class StorageService {
         }
     }
 
-    async save(
-        data: Buffer,
-        originalFilename: string,
-    ): Promise<string> {
+    async save(data: Buffer, originalFilename: string): Promise<string> {
         const ext = path.extname(originalFilename);
         const uniqueName = `${crypto.randomUUID()}${ext}`;
         const filePath = path.join(this.uploadDir, uniqueName);

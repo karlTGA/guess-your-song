@@ -1,7 +1,16 @@
-import { useState, useEffect, useCallback } from "react";
-import { Button, Modal, Form, Select, Typography, Space, Tag, message } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
-import { getPlaylists, createSession } from "../../api.js";
+import {
+    Button,
+    Form,
+    Modal,
+    message,
+    Select,
+    Space,
+    Tag,
+    Typography,
+} from "antd";
+import { useCallback, useEffect, useState } from "react";
+import { createSession, getPlaylists } from "../../api.js";
 
 const { Title, Text } = Typography;
 
@@ -38,7 +47,9 @@ export default function SessionsPage() {
 
     const handleCreate = async (values: { playlistId: string }) => {
         try {
-            const session = await createSession({ playlistId: values.playlistId });
+            const session = await createSession({
+                playlistId: values.playlistId,
+            });
             setSessions((prev) => [...prev, session]);
             message.success(`Session created with code: ${session.code}`);
             setModalOpen(false);
@@ -50,9 +61,21 @@ export default function SessionsPage() {
 
     return (
         <div>
-            <Space style={{ marginBottom: 16, display: "flex", justifyContent: "space-between" }}>
-                <Title level={4} style={{ margin: 0 }}>Game Sessions</Title>
-                <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>
+            <Space
+                style={{
+                    marginBottom: 16,
+                    display: "flex",
+                    justifyContent: "space-between",
+                }}
+            >
+                <Title level={4} style={{ margin: 0 }}>
+                    Game Sessions
+                </Title>
+                <Button
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    onClick={() => setModalOpen(true)}
+                >
                     Create Session
                 </Button>
             </Space>
@@ -62,7 +85,9 @@ export default function SessionsPage() {
                     {sessions.map((s) => (
                         <div key={s._id} style={{ marginBottom: 8 }}>
                             <Text>Join Code: </Text>
-                            <Tag color="blue" style={{ fontSize: 18 }}>{s.code}</Tag>
+                            <Tag color="blue" style={{ fontSize: 18 }}>
+                                {s.code}
+                            </Tag>
                             <Tag>{s.status}</Tag>
                         </div>
                     ))}
@@ -70,14 +95,18 @@ export default function SessionsPage() {
             )}
 
             <div style={{ marginBottom: 16 }}>
-                <Text type="secondary">Select a playlist and create a session to get a join code for players.</Text>
+                <Text type="secondary">
+                    Select a playlist and create a session to get a join code
+                    for players.
+                </Text>
             </div>
 
             <div>
                 <Title level={5}>Available Playlists</Title>
                 {playlists.map((p) => (
                     <div key={p._id} style={{ marginBottom: 4 }}>
-                        <Text>{p.name}</Text> <Text type="secondary">({p.songs.length} songs)</Text>
+                        <Text>{p.name}</Text>{" "}
+                        <Text type="secondary">({p.songs.length} songs)</Text>
                     </div>
                 ))}
             </div>
@@ -86,13 +115,27 @@ export default function SessionsPage() {
                 title="Create Game Session"
                 open={modalOpen}
                 onOk={() => form.submit()}
-                onCancel={() => { setModalOpen(false); form.resetFields(); }}
+                onCancel={() => {
+                    setModalOpen(false);
+                    form.resetFields();
+                }}
             >
                 <Form form={form} layout="vertical" onFinish={handleCreate}>
-                    <Form.Item label="Playlist" name="playlistId" rules={[{ required: true, message: "Please select a playlist" }]}>
+                    <Form.Item
+                        label="Playlist"
+                        name="playlistId"
+                        rules={[
+                            {
+                                required: true,
+                                message: "Please select a playlist",
+                            },
+                        ]}
+                    >
                         <Select placeholder="Select a playlist">
                             {playlists.map((p) => (
-                                <Select.Option key={p._id} value={p._id}>{p.name}</Select.Option>
+                                <Select.Option key={p._id} value={p._id}>
+                                    {p.name}
+                                </Select.Option>
                             ))}
                         </Select>
                     </Form.Item>

@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
-import { Typography, Card, Tag, Space, List } from "antd";
 import { TrophyOutlined } from "@ant-design/icons";
+import { Card, List, Space, Tag, Typography } from "antd";
+import { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
 import { getResults } from "../../api.js";
 
 const { Title, Text } = Typography;
@@ -38,18 +38,32 @@ export default function ResultsPage() {
                 </Title>
 
                 {players.map((player, index) => (
-                    <Card key={player.name} title={
-                        <div style={{ display: "flex", justifyContent: "space-between" }}>
-                            <span>{index === 0 && "🏆 "}{player.name}</span>
-                            <Tag color="blue">Score: {player.score}</Tag>
-                        </div>
-                    }>
+                    <Card
+                        key={player.name}
+                        title={
+                            <div
+                                style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                }}
+                            >
+                                <span>
+                                    {index === 0 && "🏆 "}
+                                    {player.name}
+                                </span>
+                                <Tag color="blue">Score: {player.score}</Tag>
+                            </div>
+                        }
+                    >
                         <List
                             size="small"
                             dataSource={player.timeline}
                             renderItem={(song) => (
                                 <List.Item>
-                                    <Text>{song.title}</Text> — <Text type="secondary">{song.artist} ({song.year})</Text>
+                                    <Text>{song.title}</Text> —{" "}
+                                    <Text type="secondary">
+                                        {song.artist} ({song.year})
+                                    </Text>
                                 </List.Item>
                             )}
                         />

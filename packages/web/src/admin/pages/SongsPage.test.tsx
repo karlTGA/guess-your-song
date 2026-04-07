@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
 import { ConfigProvider } from "antd";
+import { MemoryRouter } from "react-router-dom";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import * as api from "../../api.js";
 import { AuthProvider } from "../../contexts/AuthContext.js";
 import SongsPage from "./SongsPage.js";
-import * as api from "../../api.js";
 
 function renderSongsPage() {
     localStorage.setItem("token", "fake-jwt-token");
@@ -29,7 +29,9 @@ describe("SongsPage", () => {
         renderSongsPage();
 
         await waitFor(() => {
-            expect(screen.getAllByText("Bohemian Rhapsody").length).toBeGreaterThan(0);
+            expect(
+                screen.getAllByText("Bohemian Rhapsody").length,
+            ).toBeGreaterThan(0);
         });
         expect(screen.getAllByText("Queen").length).toBeGreaterThan(0);
         expect(screen.getAllByText("1975").length).toBeGreaterThan(0);
@@ -42,11 +44,15 @@ describe("SongsPage", () => {
         renderSongsPage();
 
         await waitFor(() => {
-            expect(screen.getAllByText("Bohemian Rhapsody").length).toBeGreaterThan(0);
+            expect(
+                screen.getAllByText("Bohemian Rhapsody").length,
+            ).toBeGreaterThan(0);
         });
 
         // Click add button
-        await user.click(screen.getAllByRole("button", { name: /add song/i })[0]);
+        await user.click(
+            screen.getAllByRole("button", { name: /add song/i })[0],
+        );
 
         // Modal should appear
         await waitFor(() => {
@@ -77,11 +83,15 @@ describe("SongsPage", () => {
         renderSongsPage();
 
         await waitFor(() => {
-            expect(screen.getAllByText("Bohemian Rhapsody").length).toBeGreaterThan(0);
+            expect(
+                screen.getAllByText("Bohemian Rhapsody").length,
+            ).toBeGreaterThan(0);
         });
 
         // Click delete on first song
-        const deleteButtons = screen.getAllByRole("button", { name: /delete/i });
+        const deleteButtons = screen.getAllByRole("button", {
+            name: /delete/i,
+        });
         await user.click(deleteButtons[0]);
 
         // Confirm delete — Ant Design Popconfirm renders a "Yes" button

@@ -1,7 +1,18 @@
-import { useState, useEffect, useCallback } from "react";
-import { Table, Button, Modal, Form, Input, InputNumber, Popconfirm, Space, Typography, message } from "antd";
-import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
-import { getSongs, createSong, deleteSong } from "../../api.js";
+import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
+import {
+    Button,
+    Form,
+    Input,
+    InputNumber,
+    Modal,
+    message,
+    Popconfirm,
+    Space,
+    Table,
+    Typography,
+} from "antd";
+import { useCallback, useEffect, useState } from "react";
+import { createSong, deleteSong, getSongs } from "../../api.js";
 
 const { Title } = Typography;
 
@@ -35,7 +46,11 @@ export default function SongsPage() {
         loadSongs();
     }, [loadSongs]);
 
-    const handleAdd = async (values: { title: string; artist: string; year: number }) => {
+    const handleAdd = async (values: {
+        title: string;
+        artist: string;
+        year: number;
+    }) => {
         try {
             await createSong(values);
             message.success("Song created");
@@ -60,13 +75,29 @@ export default function SongsPage() {
     const columns = [
         { title: "Title", dataIndex: "title", key: "title" },
         { title: "Artist", dataIndex: "artist", key: "artist" },
-        { title: "Year", dataIndex: "year", key: "year", render: (y: number) => String(y) },
+        {
+            title: "Year",
+            dataIndex: "year",
+            key: "year",
+            render: (y: number) => String(y),
+        },
         {
             title: "Actions",
             key: "actions",
             render: (_: unknown, record: Song) => (
-                <Popconfirm title="Delete this song?" onConfirm={() => handleDelete(record._id)} okText="Yes" cancelText="No">
-                    <Button danger icon={<DeleteOutlined />} aria-label="Delete">Delete</Button>
+                <Popconfirm
+                    title="Delete this song?"
+                    onConfirm={() => handleDelete(record._id)}
+                    okText="Yes"
+                    cancelText="No"
+                >
+                    <Button
+                        danger
+                        icon={<DeleteOutlined />}
+                        aria-label="Delete"
+                    >
+                        Delete
+                    </Button>
                 </Popconfirm>
             ),
         },
@@ -74,29 +105,61 @@ export default function SongsPage() {
 
     return (
         <div>
-            <Space style={{ marginBottom: 16, display: "flex", justifyContent: "space-between" }}>
-                <Title level={4} style={{ margin: 0 }}>Songs</Title>
-                <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>
+            <Space
+                style={{
+                    marginBottom: 16,
+                    display: "flex",
+                    justifyContent: "space-between",
+                }}
+            >
+                <Title level={4} style={{ margin: 0 }}>
+                    Songs
+                </Title>
+                <Button
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    onClick={() => setModalOpen(true)}
+                >
                     Add Song
                 </Button>
             </Space>
 
-            <Table dataSource={songs} columns={columns} rowKey="_id" loading={loading} />
+            <Table
+                dataSource={songs}
+                columns={columns}
+                rowKey="_id"
+                loading={loading}
+            />
 
             <Modal
                 title="Add Song"
                 open={modalOpen}
                 onOk={() => form.submit()}
-                onCancel={() => { setModalOpen(false); form.resetFields(); }}
+                onCancel={() => {
+                    setModalOpen(false);
+                    form.resetFields();
+                }}
             >
                 <Form form={form} layout="vertical" onFinish={handleAdd}>
-                    <Form.Item label="Title" name="title" rules={[{ required: true }]}>
+                    <Form.Item
+                        label="Title"
+                        name="title"
+                        rules={[{ required: true }]}
+                    >
                         <Input />
                     </Form.Item>
-                    <Form.Item label="Artist" name="artist" rules={[{ required: true }]}>
+                    <Form.Item
+                        label="Artist"
+                        name="artist"
+                        rules={[{ required: true }]}
+                    >
                         <Input />
                     </Form.Item>
-                    <Form.Item label="Year" name="year" rules={[{ required: true }]}>
+                    <Form.Item
+                        label="Year"
+                        name="year"
+                        rules={[{ required: true }]}
+                    >
                         <InputNumber style={{ width: "100%" }} />
                     </Form.Item>
                 </Form>

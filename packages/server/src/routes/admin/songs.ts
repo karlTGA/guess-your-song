@@ -1,4 +1,4 @@
-import { FastifyInstance } from "fastify";
+import type { FastifyInstance } from "fastify";
 import { SongModel } from "../../models/Song.js";
 import { authenticate } from "../../plugins/auth.js";
 

@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { Typography, Button, Card, Tag, Space, Alert } from "antd";
+import { Alert, Button, Card, Space, Tag, Typography } from "antd";
+import { useCallback, useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { getGameState, placeSong } from "../../api.js";
 
 const { Title, Text } = Typography;
@@ -30,7 +30,8 @@ export default function PlayPage() {
     const navigate = useNavigate();
     const playerName = localStorage.getItem("playerName") || "";
     const [gameState, setGameState] = useState<GameState | null>(null);
-    const [placementResult, setPlacementResult] = useState<PlacementResult | null>(null);
+    const [placementResult, setPlacementResult] =
+        useState<PlacementResult | null>(null);
 
     const loadState = useCallback(async () => {
         if (!code || !playerName) return;
@@ -55,7 +56,13 @@ export default function PlayPage() {
             const result = await placeSong(code, playerName, position);
             setPlacementResult({ correct: result.correct, song: result.song });
             setGameState((prev) =>
-                prev ? { ...prev, player: result.player, currentRoundIndex: prev.currentRoundIndex + 1 } : prev,
+                prev
+                    ? {
+                          ...prev,
+                          player: result.player,
+                          currentRoundIndex: prev.currentRoundIndex + 1,
+                      }
+                    : prev,
             );
         } catch {
             // ignore
@@ -63,16 +70,26 @@ export default function PlayPage() {
     };
 
     if (!gameState) {
-        return <div style={{ textAlign: "center", padding: 32 }}>Loading...</div>;
+        return (
+            <div style={{ textAlign: "center", padding: 32 }}>Loading...</div>
+        );
     }
 
     const { player, totalRounds, currentRoundIndex, currentRound } = gameState;
-    const audioSrc = currentRound ? `/audio/${currentRound.audioFilename}` : undefined;
+    const audioSrc = currentRound
+        ? `/audio/${currentRound.audioFilename}`
+        : undefined;
 
     return (
         <div style={{ padding: 16, maxWidth: 600, margin: "0 auto" }}>
             <Space direction="vertical" style={{ width: "100%" }} size="middle">
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div
+                    style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                    }}
+                >
                     <Title level={4} style={{ margin: 0 }}>
                         Round {currentRoundIndex + 1} of {totalRounds}
                     </Title>
@@ -81,15 +98,24 @@ export default function PlayPage() {
 
                 {audioSrc && (
                     <Card size="small">
-                        <Text strong>Listen and place this song on your timeline:</Text>
-                        <audio controls src={audioSrc} style={{ width: "100%", marginTop: 8 }} />
+                        <Text strong>
+                            Listen and place this song on your timeline:
+                        </Text>
+                        {/* biome-ignore lint/a11y/useMediaCaption: song guessing game - no captions for music */}
+                        <audio
+                            controls
+                            src={audioSrc}
+                            style={{ width: "100%", marginTop: 8 }}
+                        />
                     </Card>
                 )}
 
                 {placementResult && (
                     <Alert
                         type={placementResult.correct ? "success" : "error"}
-                        message={placementResult.correct ? "Correct!" : "Incorrect!"}
+                        message={
+                            placementResult.correct ? "Correct!" : "Incorrect!"
+                        }
                         description={`${placementResult.song.title} by ${placementResult.song.artist} (${placementResult.song.year})`}
                         showIcon
                     />
@@ -98,22 +124,36 @@ export default function PlayPage() {
                 <Card title="Your Timeline">
                     {player.timeline.length === 0 && !placementResult ? (
                         <div>
-                            <Text type="secondary">Your timeline is empty. Place your first song!</Text>
+                            <Text type="secondary">
+                                Your timeline is empty. Place your first song!
+                            </Text>
                             <div style={{ marginTop: 8 }}>
-                                <Button onClick={() => handlePlace(0)} aria-label="Place Here">
+                                <Button
+                                    onClick={() => handlePlace(0)}
+                                    aria-label="Place Here"
+                                >
                                     Place Here
                                 </Button>
                             </div>
                         </div>
                     ) : (
                         <div>
-                            <Button size="small" onClick={() => handlePlace(0)} style={{ marginBottom: 4 }} aria-label="Place Here">
+                            <Button
+                                size="small"
+                                onClick={() => handlePlace(0)}
+                                style={{ marginBottom: 4 }}
+                                aria-label="Place Here"
+                            >
                                 Place Here
                             </Button>
                             {player.timeline.map((song, i) => (
                                 <div key={song._id}>
-                                    <Card size="small" style={{ marginBottom: 4 }}>
-                                        <Text strong>{song.title}</Text> — {song.artist} ({song.year})
+                                    <Card
+                                        size="small"
+                                        style={{ marginBottom: 4 }}
+                                    >
+                                        <Text strong>{song.title}</Text> —{" "}
+                                        {song.artist} ({song.year})
                                     </Card>
                                     <Button
                                         size="small"

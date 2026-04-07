@@ -1,5 +1,3 @@
-import type { Song } from "./song.js";
-
 export type GameStatus = "waiting" | "playing" | "finished";
 
 export interface GameConfig {

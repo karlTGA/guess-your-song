@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { buildTestApp } from "../../test/helpers.js";
 import type { FastifyInstance } from "fastify";
+import { beforeEach, describe, expect, it } from "vitest";
+import { buildTestApp } from "../../test/helpers.js";
 
 async function registerAndLogin(app: FastifyInstance) {
     await app.inject({
@@ -16,10 +16,7 @@ async function registerAndLogin(app: FastifyInstance) {
     return loginRes.json().token as string;
 }
 
-async function createSessionWithPlaylist(
-    app: FastifyInstance,
-    token: string,
-) {
+async function createSessionWithPlaylist(app: FastifyInstance, token: string) {
     const songs = [];
     for (const s of [
         { title: "Song 1980", artist: "A", year: 1980 },
@@ -56,14 +53,14 @@ describe("game public API", () => {
     let app: FastifyInstance;
     let token: string;
     let sessionCode: string;
-    let songs: { _id: string; title: string; year: number }[];
+    let _songs: { _id: string; title: string; year: number }[];
 
     beforeEach(async () => {
         app = await buildTestApp();
         token = await registerAndLogin(app);
         const result = await createSessionWithPlaylist(app, token);
         sessionCode = result.session.code;
-        songs = result.songs;
+        _songs = result.songs;
     });
 
     it("player can join a session with code and name", async () => {

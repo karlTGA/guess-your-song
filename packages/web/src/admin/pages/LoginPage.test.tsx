@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
+import { beforeEach, describe, expect, it } from "vitest";
 import { AuthProvider } from "../../contexts/AuthContext.js";
 import LoginPage from "./LoginPage.js";
 
@@ -25,7 +25,9 @@ describe("LoginPage", () => {
 
         expect(screen.getByLabelText(/username/i)).toBeInTheDocument();
         expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: /login/i })).toBeInTheDocument();
+        expect(
+            screen.getByRole("button", { name: /login/i }),
+        ).toBeInTheDocument();
     });
 
     it("submits credentials and stores JWT on success", async () => {
@@ -50,7 +52,9 @@ describe("LoginPage", () => {
         await user.click(screen.getAllByRole("button", { name: /login/i })[0]);
 
         await waitFor(() => {
-            expect(screen.getByText(/invalid credentials/i)).toBeInTheDocument();
+            expect(
+                screen.getByText(/invalid credentials/i),
+            ).toBeInTheDocument();
         });
     });
 });

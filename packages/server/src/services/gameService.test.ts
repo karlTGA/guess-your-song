@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { validatePlacement } from "./gameService.js";
 
 describe("validatePlacement — timeline placement logic", () => {

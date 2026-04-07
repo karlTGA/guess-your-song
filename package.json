@@ -9,9 +9,12 @@
         "dev": "yarn workspaces foreach -Ap --jobs unlimited run dev",
         "build": "yarn workspaces foreach -Apt run build",
         "test": "vitest run --no-file-parallelism",
-        "test:watch": "vitest --no-file-parallelism"
+        "test:watch": "vitest --no-file-parallelism",
+        "lint": "biome check .",
+        "lint:fix": "biome check --fix ."
     },
     "devDependencies": {
+        "@biomejs/biome": "^2.4.10",
         "typescript": "^5.7.0",
         "vitest": "^3.1.0"
     },
