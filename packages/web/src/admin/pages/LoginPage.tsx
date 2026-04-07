@@ -1,14 +1,19 @@
 import { Alert, Button, Card, Form, Input, Typography } from "antd";
 import { useState } from "react";
+import { Navigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext.js";
 
 const { Title } = Typography;
 
 export default function LoginPage() {
-    const { login, register } = useAuth();
+    const { login, register, isAuthenticated } = useAuth();
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [isRegistering, setIsRegistering] = useState(false);
+
+    if (isAuthenticated) {
+        return <Navigate to="/admin" replace />;
+    }
 
     const onFinish = async (values: { username: string; password: string }) => {
         setError(null);

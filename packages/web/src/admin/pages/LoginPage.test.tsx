@@ -1,6 +1,6 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AuthProvider } from "../../contexts/AuthContext.js";
 import LoginPage from "./LoginPage";
@@ -8,8 +8,11 @@ import LoginPage from "./LoginPage";
 function renderLoginPage() {
     return render(
         <AuthProvider>
-            <MemoryRouter>
-                <LoginPage />
+            <MemoryRouter initialEntries={["/admin/login"]}>
+                <Routes>
+                    <Route path="/admin/login" element={<LoginPage />} />
+                    <Route path="/admin" element={<div>Admin Dashboard</div>} />
+                </Routes>
             </MemoryRouter>
         </AuthProvider>,
     );
@@ -34,7 +37,7 @@ describe("LoginPage", () => {
         ).toBeInTheDocument();
     });
 
-    it("submits credentials and stores JWT on success", async () => {
+    it("submits credentials and navigates to admin on success", async () => {
         const user = userEvent.setup();
         renderLoginPage();
 
@@ -43,8 +46,9 @@ describe("LoginPage", () => {
         await user.click(screen.getAllByRole("button", { name: /login/i })[0]);
 
         await waitFor(() => {
-            expect(localStorage.getItem("token")).toBe("fake-jwt-token");
+            expect(screen.getByText("Admin Dashboard")).toBeInTheDocument();
         });
+        expect(localStorage.getItem("token")).toBe("fake-jwt-token");
     });
 
     it("shows error message on failed login", async () => {
@@ -82,8 +86,9 @@ describe("LoginPage", () => {
         );
 
         await waitFor(() => {
-            expect(localStorage.getItem("token")).toBe("fake-jwt-token");
+            expect(screen.getByText("Admin Dashboard")).toBeInTheDocument();
         });
+        expect(localStorage.getItem("token")).toBe("fake-jwt-token");
     });
 
     it("can switch back from registration to login mode", async () => {
