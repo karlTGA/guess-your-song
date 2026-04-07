@@ -8,8 +8,8 @@
     "scripts": {
         "dev": "yarn workspaces foreach -Ap --jobs unlimited run dev",
         "build": "yarn workspaces foreach -Apt run build",
-        "test": "vitest run --no-file-parallelism",
-        "test:watch": "vitest --no-file-parallelism",
+        "test": "vitest run",
+        "test:watch": "vitest",
         "typecheck": "yarn workspaces foreach -Apt run typecheck",
         "lint": "biome check .",
         "lint:fix": "biome check --fix ."
