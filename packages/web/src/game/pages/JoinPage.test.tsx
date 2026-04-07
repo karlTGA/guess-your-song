@@ -7,7 +7,7 @@ import JoinPage from "./JoinPage.js";
 
 function renderJoinPage() {
     return render(
-        <ConfigProvider theme={{ motion: false }}>
+        <ConfigProvider theme={{ token: { motion: false } }}>
             <MemoryRouter initialEntries={["/"]}>
                 <Routes>
                     <Route path="/" element={<JoinPage />} />

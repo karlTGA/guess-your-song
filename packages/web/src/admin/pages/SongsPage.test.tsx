@@ -10,7 +10,7 @@ import SongsPage from "./SongsPage.js";
 function renderSongsPage() {
     localStorage.setItem("token", "fake-jwt-token");
     return render(
-        <ConfigProvider theme={{ motion: false }}>
+        <ConfigProvider theme={{ token: { motion: false } }}>
             <AuthProvider>
                 <MemoryRouter>
                     <SongsPage />

@@ -113,12 +113,19 @@ export async function gameRoutes(app: FastifyInstance) {
         }
 
         // Build timeline with years for validation
-        const timelineWithYears = await Promise.all(
-            player.timeline.map(async (entry) => {
-                const song = await SongModel.findById(entry.songId);
-                return { songId: entry.songId.toString(), year: song?.year };
-            }),
-        );
+        const timelineWithYears: { songId: string; year: number }[] = [];
+        for (const entry of player.timeline) {
+            const song = await SongModel.findById(entry.songId);
+            if (!song) {
+                return reply
+                    .status(500)
+                    .send({ error: "Timeline song not found" });
+            }
+            timelineWithYears.push({
+                songId: entry.songId.toString(),
+                year: song.year,
+            });
+        }
 
         const result = validatePlacement({
             timeline: timelineWithYears,
@@ -139,13 +146,16 @@ export async function gameRoutes(app: FastifyInstance) {
         currentRound.endedAt = new Date();
 
         const playlist = await PlaylistModel.findById(session.playlist);
-        const totalSongs = playlist?.songs.length ?? 0;
+        if (!playlist) {
+            return reply.status(500).send({ error: "Playlist not found" });
+        }
+        const totalSongs = playlist.songs.length;
         const nextRoundIndex = session.currentRoundIndex + 1;
 
         if (nextRoundIndex < totalSongs) {
             session.currentRoundIndex = nextRoundIndex;
             session.rounds.push({
-                songId: playlist?.songs[nextRoundIndex],
+                songId: playlist.songs[nextRoundIndex],
                 startedAt: new Date(),
             });
         } else {
