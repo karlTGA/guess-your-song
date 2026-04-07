@@ -6,7 +6,7 @@
         "packages/*"
     ],
     "scripts": {
-        "dev": "yarn workspaces foreach -Ap --jobs unlimited run dev",
+        "dev": "yarn workspaces foreach -Api --exclude guess-your-song --jobs unlimited run dev",
         "build": "yarn workspaces foreach -Apt run build",
         "test": "vitest run",
         "test:watch": "vitest",
