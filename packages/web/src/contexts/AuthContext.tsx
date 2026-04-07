@@ -6,13 +6,14 @@ import {
     useEffect,
     useState,
 } from "react";
-import { login as apiLogin } from "../api.js";
+import { login as apiLogin, register as apiRegister } from "../api.js";
 
 interface AuthState {
     token: string | null;
     username: string | null;
     isAuthenticated: boolean;
     login: (username: string, password: string) => Promise<void>;
+    register: (username: string, password: string) => Promise<void>;
     logout: () => void;
 }
 
@@ -48,6 +49,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUsername(result.admin.username);
     }, []);
 
+    const register = useCallback(async (user: string, password: string) => {
+        const result = await apiRegister(user, password);
+        setToken(result.token);
+        setUsername(result.admin.username);
+    }, []);
+
     const logout = useCallback(() => {
         setToken(null);
         setUsername(null);
@@ -55,7 +62,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return (
         <AuthContext.Provider
-            value={{ token, username, isAuthenticated: !!token, login, logout }}
+            value={{
+                token,
+                username,
+                isAuthenticated: !!token,
+                login,
+                register,
+                logout,
+            }}
         >
             {children}
         </AuthContext.Provider>

@@ -1,9 +1,9 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AuthProvider } from "../../contexts/AuthContext.js";
-import LoginPage from "./LoginPage.js";
+import LoginPage from "./LoginPage";
 
 function renderLoginPage() {
     return render(
@@ -18,6 +18,10 @@ function renderLoginPage() {
 describe("LoginPage", () => {
     beforeEach(() => {
         localStorage.clear();
+    });
+
+    afterEach(() => {
+        cleanup();
     });
 
     it("shows login form with username and password fields", () => {
@@ -56,5 +60,44 @@ describe("LoginPage", () => {
                 screen.getByText(/invalid credentials/i),
             ).toBeInTheDocument();
         });
+    });
+
+    it("can switch to registration mode and create admin", async () => {
+        const user = userEvent.setup();
+        renderLoginPage();
+
+        await user.click(screen.getByTestId("toggle-auth-mode"));
+
+        expect(
+            screen.getByText(/create admin account/i, { selector: "h3" }),
+        ).toBeInTheDocument();
+        expect(
+            screen.getByRole("button", { name: /create account/i }),
+        ).toBeInTheDocument();
+
+        await user.type(screen.getByLabelText(/username/i), "admin");
+        await user.type(screen.getByLabelText(/password/i), "securepass");
+        await user.click(
+            screen.getAllByRole("button", { name: /create account/i })[0],
+        );
+
+        await waitFor(() => {
+            expect(localStorage.getItem("token")).toBe("fake-jwt-token");
+        });
+    });
+
+    it("can switch back from registration to login mode", async () => {
+        const user = userEvent.setup();
+        renderLoginPage();
+
+        await user.click(screen.getByTestId("toggle-auth-mode"));
+        expect(
+            screen.getByText(/create admin account/i, { selector: "h3" }),
+        ).toBeInTheDocument();
+
+        await user.click(screen.getByTestId("toggle-auth-mode"));
+        expect(
+            screen.getByText(/admin login/i, { selector: "h3" }),
+        ).toBeInTheDocument();
     });
 });

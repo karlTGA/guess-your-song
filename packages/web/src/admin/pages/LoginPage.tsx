@@ -5,15 +5,20 @@ import { useAuth } from "../../contexts/AuthContext.js";
 const { Title } = Typography;
 
 export default function LoginPage() {
-    const { login } = useAuth();
+    const { login, register } = useAuth();
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+    const [isRegistering, setIsRegistering] = useState(false);
 
     const onFinish = async (values: { username: string; password: string }) => {
         setError(null);
         setLoading(true);
         try {
-            await login(values.username, values.password);
+            if (isRegistering) {
+                await register(values.username, values.password);
+            } else {
+                await login(values.username, values.password);
+            }
         } catch (err) {
             setError((err as Error).message);
         } finally {
@@ -25,7 +30,7 @@ export default function LoginPage() {
         <div style={{ maxWidth: 400, margin: "100px auto", padding: "0 16px" }}>
             <Card>
                 <Title level={3} style={{ textAlign: "center" }}>
-                    Admin Login
+                    {isRegistering ? "Create Admin Account" : "Admin Login"}
                 </Title>
                 {error && (
                     <Alert
@@ -57,10 +62,24 @@ export default function LoginPage() {
                             loading={loading}
                             block
                         >
-                            Login
+                            {isRegistering ? "Create Account" : "Login"}
                         </Button>
                     </Form.Item>
                 </Form>
+                <div style={{ textAlign: "center" }}>
+                    <Button
+                        type="link"
+                        data-testid="toggle-auth-mode"
+                        onClick={() => {
+                            setIsRegistering(!isRegistering);
+                            setError(null);
+                        }}
+                    >
+                        {isRegistering
+                            ? "Already have an account? Login"
+                            : "First time? Create admin account"}
+                    </Button>
+                </div>
             </Card>
         </div>
     );

@@ -42,6 +42,13 @@ export function login(username: string, password: string) {
     );
 }
 
+export function register(username: string, password: string) {
+    return request<{ token: string; admin: { _id: string; username: string } }>(
+        "/admin/register",
+        { method: "POST", body: JSON.stringify({ username, password }) },
+    );
+}
+
 // Songs
 export function getSongs() {
     return request<
