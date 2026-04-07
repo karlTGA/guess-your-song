@@ -5,6 +5,7 @@ import jwt from "@fastify/jwt";
 import multipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
 import Fastify, { type FastifyInstance } from "fastify";
+import mongoose from "mongoose";
 import type { AppConfig } from "./config.js";
 import { authRoutes } from "./routes/admin/auth.js";
 import { playlistRoutes } from "./routes/admin/playlists.js";
@@ -24,8 +25,14 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
         logger: process.env.NODE_ENV !== "test",
     });
 
+    await mongoose.connect(config.mongoUri);
+
     const storageService = new StorageService(config.uploadDir);
     app.decorate("storageService", storageService);
+
+    app.addHook("onClose", async () => {
+        await mongoose.disconnect();
+    });
 
     await app.register(cors, { origin: true });
     await app.register(jwt, { secret: config.jwtSecret });
