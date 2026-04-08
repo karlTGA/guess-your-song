@@ -1,4 +1,4 @@
-import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
+import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
 import {
     Button,
     Form,
@@ -6,14 +6,28 @@ import {
     Modal,
     message,
     Popconfirm,
+    Select,
     Space,
     Table,
     Typography,
 } from "antd";
 import { useCallback, useEffect, useState } from "react";
-import { createPlaylist, deletePlaylist, getPlaylists } from "../../api.js";
+import {
+    createPlaylist,
+    deletePlaylist,
+    getPlaylists,
+    getSongs,
+    updatePlaylist,
+} from "../../api.js";
 
 const { Title } = Typography;
+
+interface Song {
+    _id: string;
+    title: string;
+    artist: string;
+    year: number;
+}
 
 interface Playlist {
     _id: string;
@@ -24,9 +38,13 @@ interface Playlist {
 
 export default function PlaylistsPage() {
     const [playlists, setPlaylists] = useState<Playlist[]>([]);
+    const [songs, setSongs] = useState<Song[]>([]);
     const [loading, setLoading] = useState(false);
     const [modalOpen, setModalOpen] = useState(false);
+    const [manageSongsPlaylist, setManageSongsPlaylist] =
+        useState<Playlist | null>(null);
     const [form] = Form.useForm();
+    const [manageSongsForm] = Form.useForm();
 
     const loadPlaylists = useCallback(async () => {
         setLoading(true);
@@ -40,16 +58,27 @@ export default function PlaylistsPage() {
         }
     }, []);
 
+    const loadSongs = useCallback(async () => {
+        try {
+            const data = await getSongs();
+            setSongs(data);
+        } catch {
+            message.error("Failed to load songs");
+        }
+    }, []);
+
     useEffect(() => {
         loadPlaylists();
-    }, [loadPlaylists]);
+        loadSongs();
+    }, [loadPlaylists, loadSongs]);
 
     const handleAdd = async (values: {
         name: string;
         description?: string;
+        songs?: string[];
     }) => {
         try {
-            await createPlaylist({ ...values, songs: [] });
+            await createPlaylist({ ...values, songs: values.songs ?? [] });
             message.success("Playlist created");
             setModalOpen(false);
             form.resetFields();
@@ -69,6 +98,26 @@ export default function PlaylistsPage() {
         }
     };
 
+    const openManageSongs = (playlist: Playlist) => {
+        setManageSongsPlaylist(playlist);
+        manageSongsForm.setFieldsValue({ songs: playlist.songs });
+    };
+
+    const handleManageSongs = async (values: { songs: string[] }) => {
+        if (!manageSongsPlaylist) return;
+        try {
+            await updatePlaylist(manageSongsPlaylist._id, {
+                songs: values.songs,
+            });
+            message.success("Playlist songs updated");
+            setManageSongsPlaylist(null);
+            manageSongsForm.resetFields();
+            loadPlaylists();
+        } catch {
+            message.error("Failed to update playlist songs");
+        }
+    };
+
     const columns = [
         { title: "Name", dataIndex: "name", key: "name" },
         { title: "Description", dataIndex: "description", key: "description" },
@@ -82,20 +131,29 @@ export default function PlaylistsPage() {
             title: "Actions",
             key: "actions",
             render: (_: unknown, record: Playlist) => (
-                <Popconfirm
-                    title="Delete this playlist?"
-                    onConfirm={() => handleDelete(record._id)}
-                    okText="Yes"
-                    cancelText="No"
-                >
+                <Space>
                     <Button
-                        danger
-                        icon={<DeleteOutlined />}
-                        aria-label="Delete"
+                        icon={<EditOutlined />}
+                        onClick={() => openManageSongs(record)}
+                        aria-label="Manage Songs"
                     >
-                        Delete
+                        Manage Songs
                     </Button>
-                </Popconfirm>
+                    <Popconfirm
+                        title="Delete this playlist?"
+                        onConfirm={() => handleDelete(record._id)}
+                        okText="Yes"
+                        cancelText="No"
+                    >
+                        <Button
+                            danger
+                            icon={<DeleteOutlined />}
+                            aria-label="Delete"
+                        >
+                            Delete
+                        </Button>
+                    </Popconfirm>
+                </Space>
             ),
         },
     ];
@@ -147,6 +205,43 @@ export default function PlaylistsPage() {
                     </Form.Item>
                     <Form.Item label="Description" name="description">
                         <Input />
+                    </Form.Item>
+                    <Form.Item label="Songs" name="songs">
+                        <Select
+                            mode="multiple"
+                            placeholder="Select songs"
+                            options={songs.map((s) => ({
+                                label: `${s.title} - ${s.artist} (${s.year})`,
+                                value: s._id,
+                            }))}
+                        />
+                    </Form.Item>
+                </Form>
+            </Modal>
+
+            <Modal
+                title="Manage Songs"
+                open={!!manageSongsPlaylist}
+                onOk={() => manageSongsForm.submit()}
+                onCancel={() => {
+                    setManageSongsPlaylist(null);
+                    manageSongsForm.resetFields();
+                }}
+            >
+                <Form
+                    form={manageSongsForm}
+                    layout="vertical"
+                    onFinish={handleManageSongs}
+                >
+                    <Form.Item label="Songs" name="songs">
+                        <Select
+                            mode="multiple"
+                            placeholder="Select songs"
+                            options={songs.map((s) => ({
+                                label: `${s.title} - ${s.artist} (${s.year})`,
+                                value: s._id,
+                            }))}
+                        />
                     </Form.Item>
                 </Form>
             </Modal>
