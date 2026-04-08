@@ -1,6 +1,7 @@
 {
     "chat.tools.terminal.autoApprove": {
         "npx vitest": true,
-        "yarn workspace": true
+        "yarn workspace": true,
+        "yarn vitest": true
     }
 }

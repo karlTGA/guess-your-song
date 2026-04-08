@@ -203,6 +203,7 @@ export async function gameRoutes(app: FastifyInstance) {
 
         return reply.send({
             correct: result.correct,
+            status: session.status,
             song: {
                 _id: currentSong._id.toString(),
                 title: currentSong.title,

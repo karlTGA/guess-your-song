@@ -54,6 +54,10 @@ export default function PlayPage() {
         if (!code || !playerName) return;
         try {
             const result = await placeSong(code, playerName, position);
+            if (result.status === "finished") {
+                navigate(`/game/${code}/results`);
+                return;
+            }
             setPlacementResult({ correct: result.correct, song: result.song });
             setGameState((prev) =>
                 prev

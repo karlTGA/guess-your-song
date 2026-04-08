@@ -207,6 +207,7 @@ export function getGameState(code: string, playerName: string) {
 export function placeSong(code: string, playerName: string, position: number) {
     return request<{
         correct: boolean;
+        status: string;
         song: { _id: string; title: string; artist: string; year: number };
         player: {
             name: string;

@@ -227,6 +227,7 @@ export const handlers = [
         };
         return HttpResponse.json({
             correct: true,
+            status: "playing",
             song: {
                 _id: "song1",
                 title: "Bohemian Rhapsody",

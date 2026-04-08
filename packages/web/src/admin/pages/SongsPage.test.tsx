@@ -62,7 +62,10 @@ describe("SongsPage", () => {
         const modal = screen.getByRole("dialog");
         await user.type(within(modal).getByLabelText(/title/i), "New Song");
         await user.type(within(modal).getByLabelText(/artist/i), "New Artist");
-        await user.type(within(modal).getByLabelText(/year/i), "2020");
+
+        const yearInput = within(modal).getByLabelText(/year/i);
+        await user.clear(yearInput);
+        await user.paste("2020");
 
         // Submit via OK button
         await user.click(within(modal).getByRole("button", { name: /ok/i }));

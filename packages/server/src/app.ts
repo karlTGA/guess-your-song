@@ -25,13 +25,18 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
         logger: process.env.NODE_ENV !== "test",
     });
 
-    await mongoose.connect(config.mongoUri);
+    const wasConnected = mongoose.connection.readyState === 1;
+    if (!wasConnected) {
+        await mongoose.connect(config.mongoUri);
+    }
 
     const storageService = new StorageService(config.uploadDir);
     app.decorate("storageService", storageService);
 
     app.addHook("onClose", async () => {
-        await mongoose.disconnect();
+        if (!wasConnected) {
+            await mongoose.disconnect();
+        }
     });
 
     await app.register(cors, { origin: true });

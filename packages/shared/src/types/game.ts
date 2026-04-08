@@ -47,6 +47,7 @@ export interface PlaceSongInput {
 
 export interface PlaceSongResult {
     correct: boolean;
+    status: GameStatus;
     song: {
         _id: string;
         title: string;

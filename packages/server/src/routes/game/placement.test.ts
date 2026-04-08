@@ -198,6 +198,30 @@ describe("game placement and round flow", () => {
         expect(state.currentRoundIndex).toBe(1);
     });
 
+    it("place response includes status field", async () => {
+        // First placement — game should still be playing
+        const firstRes = await app.inject({
+            method: "POST",
+            url: `/api/game/sessions/${sessionCode}/place`,
+            payload: { playerName: "Alice", position: 0 },
+        });
+        expect(firstRes.json().status).toBe("playing");
+    });
+
+    it("place response returns finished status on last round", async () => {
+        // Play through all 3 rounds
+        let lastResponse;
+        for (let i = 0; i < 3; i++) {
+            lastResponse = await app.inject({
+                method: "POST",
+                url: `/api/game/sessions/${sessionCode}/place`,
+                payload: { playerName: "Alice", position: i },
+            });
+        }
+
+        expect(lastResponse!.json().status).toBe("finished");
+    });
+
     it("game ends after all rounds are played", async () => {
         // Play through all 3 rounds by always placing at the end
         for (let i = 0; i < 3; i++) {
