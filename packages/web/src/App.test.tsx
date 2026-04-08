@@ -5,6 +5,6 @@ import App from "./App";
 describe("App", () => {
     it("renders without crashing", () => {
         render(<App />);
-        expect(screen.getByText("Guess Your Song")).toBeInTheDocument();
+        expect(screen.getByText("Start a New Game")).toBeInTheDocument();
     });
 });

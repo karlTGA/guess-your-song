@@ -1,10 +1,80 @@
+import crypto from "node:crypto";
+import { DEFAULT_GAME_CONFIG } from "@guess-your-song/shared";
 import type { FastifyInstance } from "fastify";
 import { GameSessionModel } from "../../models/GameSession";
 import { PlaylistModel } from "../../models/Playlist";
 import { SongModel } from "../../models/Song";
 import { validatePlacement } from "../../services/gameService";
 
+function generateCode(): string {
+    return crypto.randomBytes(3).toString("hex").toUpperCase();
+}
+
+async function generateUniqueCode(): Promise<string> {
+    for (let i = 0; i < 10; i++) {
+        const code = generateCode();
+        const existing = await GameSessionModel.findOne({ code });
+        if (!existing) return code;
+    }
+    throw new Error("Failed to generate unique code after 10 attempts");
+}
+
 export async function gameRoutes(app: FastifyInstance) {
+    app.get("/api/game/playlists", async (_request, reply) => {
+        const playlists = await PlaylistModel.find();
+        const result = playlists.map((p) => ({
+            _id: p._id,
+            name: p.name,
+            description: p.description,
+            songCount: p.songs.length,
+        }));
+        return reply.send(result);
+    });
+
+    app.post("/api/game/sessions", async (request, reply) => {
+        const { playlistId, playerName } = request.body as {
+            playlistId: string;
+            playerName: string;
+        };
+
+        const playlist = await PlaylistModel.findById(playlistId);
+        if (!playlist) {
+            return reply.status(404).send({ error: "Playlist not found" });
+        }
+
+        if (playlist.songs.length === 0) {
+            return reply
+                .status(400)
+                .send({ error: "Playlist has no songs" });
+        }
+
+        const code = await generateUniqueCode();
+
+        const session = await GameSessionModel.create({
+            code,
+            playlist: playlistId,
+            config: { ...DEFAULT_GAME_CONFIG },
+            status: "playing",
+            currentRoundIndex: 0,
+            players: [
+                {
+                    name: playerName,
+                    joinedAt: new Date(),
+                    timeline: [],
+                    score: 0,
+                },
+            ],
+            rounds: [
+                {
+                    songId: playlist.songs[0],
+                    startedAt: new Date(),
+                },
+            ],
+        });
+
+        return reply.status(201).send(session);
+    });
+
     app.get("/api/game/sessions/:code", async (request, reply) => {
         const { code } = request.params as { code: string };
 

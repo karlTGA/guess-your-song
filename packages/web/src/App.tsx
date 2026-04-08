@@ -20,6 +20,7 @@ import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import JoinPage from "./game/pages/JoinPage";
 import PlayPage from "./game/pages/PlayPage";
 import ResultsPage from "./game/pages/ResultsPage";
+import StartGamePage from "./game/pages/StartGamePage";
 
 const { Header, Content, Sider } = Layout;
 
@@ -94,7 +95,8 @@ function App() {
             <AuthProvider>
                 <BrowserRouter>
                     <Routes>
-                        <Route path="/" element={<JoinPage />} />
+                        <Route path="/" element={<StartGamePage />} />
+                        <Route path="/join" element={<JoinPage />} />
                         <Route path="/admin/login" element={<LoginPage />} />
                         <Route path="/admin" element={<AdminLayout />}>
                             <Route

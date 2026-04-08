@@ -166,6 +166,44 @@ export const handlers = [
     }),
 
     // Game (public)
+    http.get("/api/game/playlists", () => {
+        return HttpResponse.json([
+            {
+                _id: "pl1",
+                name: "Classic Hits",
+                description: "Best classics",
+                songCount: 2,
+            },
+        ]);
+    }),
+
+    http.post("/api/game/sessions", async ({ request }) => {
+        const body = (await request.json()) as {
+            playlistId: string;
+            playerName: string;
+        };
+        return HttpResponse.json(
+            {
+                _id: "sess-new",
+                code: "NEW123",
+                playlist: body.playlistId,
+                status: "playing",
+                config: { roundTimerSeconds: 30, maxPlayers: 20 },
+                players: [
+                    {
+                        name: body.playerName,
+                        joinedAt: new Date().toISOString(),
+                        timeline: [],
+                        score: 0,
+                    },
+                ],
+                rounds: [{ songId: "song1", startedAt: new Date().toISOString() }],
+                currentRoundIndex: 0,
+            },
+            { status: 201 },
+        );
+    }),
+
     http.get("/api/game/sessions/:code", ({ params }) => {
         if (params.code === "ABC123") {
             return HttpResponse.json({

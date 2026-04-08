@@ -160,6 +160,29 @@ export function startSession(code: string) {
 }
 
 // Game (public)
+export function getGamePlaylists() {
+    return request<
+        {
+            _id: string;
+            name: string;
+            description?: string;
+            songCount: number;
+        }[]
+    >("/game/playlists");
+}
+
+export function createGameSession(playlistId: string, playerName: string) {
+    return request<{
+        _id: string;
+        code: string;
+        status: string;
+        players: { name: string; timeline: unknown[]; score: number }[];
+    }>("/game/sessions", {
+        method: "POST",
+        body: JSON.stringify({ playlistId, playerName }),
+    });
+}
+
 export function getSessionInfo(code: string) {
     return request<{
         code: string;

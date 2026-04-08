@@ -165,3 +165,134 @@ describe("game public API", () => {
         expect(state.currentRoundIndex).toBe(0);
     });
 });
+
+describe("public game creation", () => {
+    let app: FastifyInstance;
+    let token: string;
+
+    beforeEach(async () => {
+        app = await buildTestApp();
+        token = await registerAndLogin(app);
+    });
+
+    it("user can list available playlists", async () => {
+        // Create songs and playlist via admin
+        const songs = [];
+        for (const s of [
+            { title: "Song A", artist: "A", year: 1980 },
+            { title: "Song B", artist: "B", year: 1990 },
+        ]) {
+            const res = await app.inject({
+                method: "POST",
+                url: "/api/admin/songs",
+                headers: { authorization: `Bearer ${token}` },
+                payload: s,
+            });
+            songs.push(res.json());
+        }
+
+        await app.inject({
+            method: "POST",
+            url: "/api/admin/playlists",
+            headers: { authorization: `Bearer ${token}` },
+            payload: {
+                name: "Test Playlist",
+                songs: songs.map((s) => s._id),
+            },
+        });
+
+        // Public endpoint — no auth needed
+        const response = await app.inject({
+            method: "GET",
+            url: "/api/game/playlists",
+        });
+
+        expect(response.statusCode).toBe(200);
+        const playlists = response.json();
+        expect(playlists).toHaveLength(1);
+        expect(playlists[0].name).toBe("Test Playlist");
+        expect(playlists[0].songCount).toBe(2);
+    });
+
+    it("user can create and auto-start a game by choosing a playlist", async () => {
+        // Create songs and playlist via admin
+        const songs = [];
+        for (const s of [
+            { title: "Song A", artist: "A", year: 1980 },
+            { title: "Song B", artist: "B", year: 1990 },
+            { title: "Song C", artist: "C", year: 2000 },
+        ]) {
+            const res = await app.inject({
+                method: "POST",
+                url: "/api/admin/songs",
+                headers: { authorization: `Bearer ${token}` },
+                payload: s,
+            });
+            songs.push(res.json());
+        }
+
+        const playlistRes = await app.inject({
+            method: "POST",
+            url: "/api/admin/playlists",
+            headers: { authorization: `Bearer ${token}` },
+            payload: {
+                name: "Game Playlist",
+                songs: songs.map((s) => s._id),
+            },
+        });
+        const playlistId = playlistRes.json()._id;
+
+        // Any user can create a game — no auth required
+        const response = await app.inject({
+            method: "POST",
+            url: "/api/game/sessions",
+            payload: {
+                playlistId,
+                playerName: "Alice",
+            },
+        });
+
+        expect(response.statusCode).toBe(201);
+        const session = response.json();
+        expect(session.code).toBeDefined();
+        expect(session.code).toHaveLength(6);
+        expect(session.status).toBe("playing");
+        expect(session.players).toHaveLength(1);
+        expect(session.players[0].name).toBe("Alice");
+        expect(session.currentRoundIndex).toBe(0);
+        expect(session.rounds).toHaveLength(1);
+    });
+
+    it("cannot create a game with non-existent playlist", async () => {
+        const response = await app.inject({
+            method: "POST",
+            url: "/api/game/sessions",
+            payload: {
+                playlistId: "000000000000000000000000",
+                playerName: "Alice",
+            },
+        });
+
+        expect(response.statusCode).toBe(404);
+    });
+
+    it("cannot create a game with an empty playlist", async () => {
+        const playlistRes = await app.inject({
+            method: "POST",
+            url: "/api/admin/playlists",
+            headers: { authorization: `Bearer ${token}` },
+            payload: { name: "Empty Playlist", songs: [] },
+        });
+
+        const response = await app.inject({
+            method: "POST",
+            url: "/api/game/sessions",
+            payload: {
+                playlistId: playlistRes.json()._id,
+                playerName: "Alice",
+            },
+        });
+
+        expect(response.statusCode).toBe(400);
+    });
+});
