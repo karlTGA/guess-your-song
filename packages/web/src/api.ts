@@ -91,13 +91,36 @@ export function deleteSong(id: string) {
     return request<void>(`/admin/songs/${id}`, { method: "DELETE" });
 }
 
-export function uploadSongAudio(file: File) {
+export function uploadSongAudio(data: {
+    title: string;
+    artist: string;
+    year: number;
+    file: File;
+}) {
+    const formData = new FormData();
+    formData.append("title", data.title);
+    formData.append("artist", data.artist);
+    formData.append("year", String(data.year));
+    formData.append("audio", data.file);
+    return request<{
+        _id: string;
+        title: string;
+        artist: string;
+        year: number;
+        audioFilename: string;
+    }>("/admin/songs/upload", { method: "POST", body: formData });
+}
+
+export function uploadAudioForSong(id: string, file: File) {
     const formData = new FormData();
     formData.append("audio", file);
-    return request<{ _id: string; audioFilename: string }>(
-        "/admin/songs/upload",
-        { method: "POST", body: formData },
-    );
+    return request<{
+        _id: string;
+        title: string;
+        artist: string;
+        year: number;
+        audioFilename: string;
+    }>(`/admin/songs/${id}/audio`, { method: "PUT", body: formData });
 }
 
 // Playlists

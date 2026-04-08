@@ -101,6 +101,16 @@ export const handlers = [
         );
     }),
 
+    http.put("/api/admin/songs/:id/audio", ({ params }) => {
+        return HttpResponse.json({
+            _id: params.id,
+            title: "Bohemian Rhapsody",
+            artist: "Queen",
+            year: 1975,
+            audioFilename: "new-audio.mp3",
+        });
+    }),
+
     // Playlists
     http.get("/api/admin/playlists", () => {
         return HttpResponse.json(playlists);
@@ -197,7 +207,9 @@ export const handlers = [
                         score: 0,
                     },
                 ],
-                rounds: [{ songId: "song1", startedAt: new Date().toISOString() }],
+                rounds: [
+                    { songId: "song1", startedAt: new Date().toISOString() },
+                ],
                 currentRoundIndex: 0,
             },
             { status: 201 },

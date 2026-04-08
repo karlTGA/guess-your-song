@@ -110,4 +110,98 @@ describe("SongsPage", () => {
             expect(deleteSpy).toHaveBeenCalledWith("song1");
         });
     });
+
+    it("submitting add song modal with file calls uploadSongAudio", async () => {
+        const uploadSpy = vi.spyOn(api, "uploadSongAudio");
+        const user = userEvent.setup();
+        renderSongsPage();
+
+        await waitFor(() => {
+            expect(
+                screen.getAllByText("Bohemian Rhapsody").length,
+            ).toBeGreaterThan(0);
+        });
+
+        await user.click(
+            screen.getAllByRole("button", { name: /add song/i })[0],
+        );
+
+        await waitFor(() => {
+            expect(screen.getByRole("dialog")).toBeInTheDocument();
+        });
+
+        const modal = screen.getByRole("dialog");
+        await user.type(within(modal).getByLabelText(/title/i), "Upload Song");
+        await user.type(
+            within(modal).getByLabelText(/artist/i),
+            "Upload Artist",
+        );
+
+        const yearInput = within(modal).getByLabelText(/year/i);
+        await user.clear(yearInput);
+        await user.paste("2020");
+
+        // Attach a file
+        const file = new File(["audio-data"], "song.mp3", {
+            type: "audio/mpeg",
+        });
+        const fileInput = within(modal).getByLabelText(
+            /audio file/i,
+        ) as HTMLInputElement;
+        await user.upload(fileInput, file);
+
+        // Submit
+        await user.click(within(modal).getByRole("button", { name: /ok/i }));
+
+        await waitFor(() => {
+            expect(uploadSpy).toHaveBeenCalledWith({
+                title: "Upload Song",
+                artist: "Upload Artist",
+                year: 2020,
+                file: expect.any(File),
+            });
+        });
+    });
+
+    it("shows audio status for each song", async () => {
+        renderSongsPage();
+
+        await waitFor(() => {
+            expect(
+                screen.getAllByText("Bohemian Rhapsody").length,
+            ).toBeGreaterThan(0);
+        });
+
+        // Both mock songs have audioFilename, so should show "Has audio"
+        const audioIndicators = screen.getAllByText("Has audio");
+        expect(audioIndicators.length).toBe(2);
+    });
+
+    it("admin can upload audio for an existing song", async () => {
+        const uploadAudioSpy = vi.spyOn(api, "uploadAudioForSong");
+        const user = userEvent.setup();
+        renderSongsPage();
+
+        await waitFor(() => {
+            expect(
+                screen.getAllByText("Bohemian Rhapsody").length,
+            ).toBeGreaterThan(0);
+        });
+
+        const uploadButtons = screen.getAllByRole("button", {
+            name: /upload audio/i,
+        });
+        expect(uploadButtons.length).toBeGreaterThan(0);
+
+        // Attach a file via the hidden input associated with the first upload button
+        const file = new File(["audio-data"], "new-audio.mp3", {
+            type: "audio/mpeg",
+        });
+        const fileInputs = screen.getAllByTestId("audio-upload-input");
+        await user.upload(fileInputs[0], file);
+
+        await waitFor(() => {
+            expect(uploadAudioSpy).toHaveBeenCalledWith("song1", file);
+        });
+    });
 });

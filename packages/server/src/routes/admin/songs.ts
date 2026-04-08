@@ -87,4 +87,39 @@ export async function songRoutes(app: FastifyInstance) {
 
         return reply.status(201).send(song);
     });
+
+    app.put("/api/admin/songs/:id/audio", async (request, reply) => {
+        const { id } = request.params as { id: string };
+
+        const song = await SongModel.findById(id);
+        if (!song) {
+            return reply.status(404).send({ error: "Song not found" });
+        }
+
+        const data = await request.file();
+        if (!data) {
+            return reply.status(400).send({ error: "No file uploaded" });
+        }
+
+        const chunks: Buffer[] = [];
+        for await (const chunk of data.file) {
+            chunks.push(chunk);
+        }
+        const fileBuffer = Buffer.concat(chunks);
+
+        // Delete old audio file if replacing
+        if (song.audioFilename) {
+            await app.storageService.delete(song.audioFilename);
+        }
+
+        const audioFilename = await app.storageService.save(
+            fileBuffer,
+            data.filename,
+        );
+
+        song.audioFilename = audioFilename;
+        await song.save();
+
+        return reply.send(song);
+    });
 }

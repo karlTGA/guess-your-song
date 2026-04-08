@@ -1,4 +1,8 @@
-import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
+import {
+    DeleteOutlined,
+    PlusOutlined,
+    UploadOutlined,
+} from "@ant-design/icons";
 import {
     Button,
     Form,
@@ -9,10 +13,17 @@ import {
     Popconfirm,
     Space,
     Table,
+    Tag,
     Typography,
 } from "antd";
-import { useCallback, useEffect, useState } from "react";
-import { createSong, deleteSong, getSongs } from "../../api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+    createSong,
+    deleteSong,
+    getSongs,
+    uploadAudioForSong,
+    uploadSongAudio,
+} from "../../api";
 
 const { Title } = Typography;
 
@@ -28,7 +39,9 @@ export default function SongsPage() {
     const [songs, setSongs] = useState<Song[]>([]);
     const [loading, setLoading] = useState(false);
     const [modalOpen, setModalOpen] = useState(false);
+    const [audioFile, setAudioFile] = useState<File | null>(null);
     const [form] = Form.useForm();
+    const uploadRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
     const loadSongs = useCallback(async () => {
         setLoading(true);
@@ -52,9 +65,14 @@ export default function SongsPage() {
         year: number;
     }) => {
         try {
-            await createSong(values);
+            if (audioFile) {
+                await uploadSongAudio({ ...values, file: audioFile });
+            } else {
+                await createSong(values);
+            }
             message.success("Song created");
             setModalOpen(false);
+            setAudioFile(null);
             form.resetFields();
             loadSongs();
         } catch {
@@ -72,6 +90,16 @@ export default function SongsPage() {
         }
     };
 
+    const handleUploadAudio = async (id: string, file: File) => {
+        try {
+            await uploadAudioForSong(id, file);
+            message.success("Audio uploaded");
+            loadSongs();
+        } catch {
+            message.error("Failed to upload audio");
+        }
+    };
+
     const columns = [
         { title: "Title", dataIndex: "title", key: "title" },
         { title: "Artist", dataIndex: "artist", key: "artist" },
@@ -82,23 +110,57 @@ export default function SongsPage() {
             render: (y: number) => String(y),
         },
         {
+            title: "Audio",
+            key: "audio",
+            render: (_: unknown, record: Song) =>
+                record.audioFilename ? (
+                    <Tag color="green">Has audio</Tag>
+                ) : (
+                    <Tag>No audio</Tag>
+                ),
+        },
+        {
             title: "Actions",
             key: "actions",
             render: (_: unknown, record: Song) => (
-                <Popconfirm
-                    title="Delete this song?"
-                    onConfirm={() => handleDelete(record._id)}
-                    okText="Yes"
-                    cancelText="No"
-                >
+                <Space>
                     <Button
-                        danger
-                        icon={<DeleteOutlined />}
-                        aria-label="Delete"
+                        icon={<UploadOutlined />}
+                        aria-label="Upload Audio"
+                        onClick={() => uploadRefs.current[record._id]?.click()}
                     >
-                        Delete
+                        Upload Audio
                     </Button>
-                </Popconfirm>
+                    <input
+                        type="file"
+                        accept="audio/*"
+                        data-testid="audio-upload-input"
+                        ref={(el) => {
+                            uploadRefs.current[record._id] = el;
+                        }}
+                        style={{ display: "none" }}
+                        onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                                handleUploadAudio(record._id, file);
+                            }
+                        }}
+                    />
+                    <Popconfirm
+                        title="Delete this song?"
+                        onConfirm={() => handleDelete(record._id)}
+                        okText="Yes"
+                        cancelText="No"
+                    >
+                        <Button
+                            danger
+                            icon={<DeleteOutlined />}
+                            aria-label="Delete"
+                        >
+                            Delete
+                        </Button>
+                    </Popconfirm>
+                </Space>
             ),
         },
     ];
@@ -137,6 +199,7 @@ export default function SongsPage() {
                 onOk={() => form.submit()}
                 onCancel={() => {
                     setModalOpen(false);
+                    setAudioFile(null);
                     form.resetFields();
                 }}
             >
@@ -161,6 +224,16 @@ export default function SongsPage() {
                         rules={[{ required: true }]}
                     >
                         <InputNumber style={{ width: "100%" }} />
+                    </Form.Item>
+                    <Form.Item label="Audio File">
+                        <input
+                            type="file"
+                            accept="audio/*"
+                            aria-label="Audio File"
+                            onChange={(e) => {
+                                setAudioFile(e.target.files?.[0] ?? null);
+                            }}
+                        />
                     </Form.Item>
                 </Form>
             </Modal>
