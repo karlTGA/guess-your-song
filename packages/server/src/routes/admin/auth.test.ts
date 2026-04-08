@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildTestApp } from "../../test/helpers.js";
+import { buildTestApp } from "../../test/helpers";
 
 describe("POST /api/admin/register", () => {
     it("first admin can register", async () => {

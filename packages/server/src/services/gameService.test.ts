@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validatePlacement } from "./gameService.js";
+import { validatePlacement } from "./gameService";
 
 describe("validatePlacement — timeline placement logic", () => {
     // Timeline entries are stored as { songId, year } sorted by the player's placement order

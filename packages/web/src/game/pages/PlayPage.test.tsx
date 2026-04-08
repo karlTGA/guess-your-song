@@ -3,8 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { ConfigProvider } from "antd";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import * as api from "../../api.js";
-import PlayPage from "./PlayPage.js";
+import * as api from "../../api";
+import PlayPage from "./PlayPage";
 
 function renderPlayPage() {
     localStorage.setItem("playerName", "Alice");

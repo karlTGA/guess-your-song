@@ -3,7 +3,7 @@ export type {
     AuthResponse,
     LoginInput,
     RegisterInput,
-} from "./types/admin.js";
+} from "./types/admin";
 export type {
     CreateGameSessionInput,
     GameConfig,
@@ -14,11 +14,11 @@ export type {
     PlaceSongResult,
     PlayerTimeline,
     TimelineEntry,
-} from "./types/game.js";
-export { DEFAULT_GAME_CONFIG } from "./types/game.js";
+} from "./types/game";
+export { DEFAULT_GAME_CONFIG } from "./types/game";
 export type {
     CreatePlaylistInput,
     Playlist,
     UpdatePlaylistInput,
-} from "./types/playlist.js";
-export type { CreateSongInput, Song, UpdateSongInput } from "./types/song.js";
+} from "./types/playlist";
+export type { CreateSongInput, Song, UpdateSongInput } from "./types/song";

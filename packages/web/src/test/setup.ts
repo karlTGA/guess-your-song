@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 import { afterAll, afterEach, beforeAll } from "vitest";
-import { server } from "./server.js";
+import { server } from "./server";
 
 // Ant Design requires matchMedia
 Object.defineProperty(window, "matchMedia", {

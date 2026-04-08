@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
-import { SongModel } from "../../models/Song.js";
-import { authenticate } from "../../plugins/auth.js";
+import { SongModel } from "../../models/Song";
+import { authenticate } from "../../plugins/auth";
 
 export async function songRoutes(app: FastifyInstance) {
     app.addHook("onRequest", authenticate);

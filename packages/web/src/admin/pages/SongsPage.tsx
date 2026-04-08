@@ -12,7 +12,7 @@ import {
     Typography,
 } from "antd";
 import { useCallback, useEffect, useState } from "react";
-import { createSong, deleteSong, getSongs } from "../../api.js";
+import { createSong, deleteSong, getSongs } from "../../api";
 
 const { Title } = Typography;
 

@@ -1,5 +1,5 @@
-import { buildApp } from "./app.js";
-import { loadConfig } from "./config.js";
+import { buildApp } from "./app";
+import { loadConfig } from "./config";
 
 async function start() {
     const config = loadConfig();

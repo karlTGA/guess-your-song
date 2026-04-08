@@ -1,9 +1,9 @@
 import crypto from "node:crypto";
 import { DEFAULT_GAME_CONFIG } from "@guess-your-song/shared";
 import type { FastifyInstance } from "fastify";
-import { GameSessionModel } from "../../models/GameSession.js";
-import { PlaylistModel } from "../../models/Playlist.js";
-import { authenticate } from "../../plugins/auth.js";
+import { GameSessionModel } from "../../models/GameSession";
+import { PlaylistModel } from "../../models/Playlist";
+import { authenticate } from "../../plugins/auth";
 
 function generateCode(): string {
     return crypto.randomBytes(3).toString("hex").toUpperCase();

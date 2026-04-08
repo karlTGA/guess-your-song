@@ -1,8 +1,8 @@
 import type { FastifyInstance } from "fastify";
-import { GameSessionModel } from "../../models/GameSession.js";
-import { PlaylistModel } from "../../models/Playlist.js";
-import { SongModel } from "../../models/Song.js";
-import { validatePlacement } from "../../services/gameService.js";
+import { GameSessionModel } from "../../models/GameSession";
+import { PlaylistModel } from "../../models/Playlist";
+import { SongModel } from "../../models/Song";
+import { validatePlacement } from "../../services/gameService";
 
 export async function gameRoutes(app: FastifyInstance) {
     app.get("/api/game/sessions/:code", async (request, reply) => {

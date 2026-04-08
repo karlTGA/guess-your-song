@@ -18,7 +18,7 @@ import {
     getPlaylists,
     getSongs,
     updatePlaylist,
-} from "../../api.js";
+} from "../../api";
 
 const { Title } = Typography;
 

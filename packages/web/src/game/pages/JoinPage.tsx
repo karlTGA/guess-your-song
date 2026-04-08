@@ -1,7 +1,7 @@
 import { Alert, Button, Card, Form, Input, Typography } from "antd";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { joinSession } from "../../api.js";
+import { joinSession } from "../../api";
 
 const { Title } = Typography;
 

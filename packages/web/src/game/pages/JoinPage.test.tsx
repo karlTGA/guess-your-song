@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { ConfigProvider } from "antd";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it } from "vitest";
-import JoinPage from "./JoinPage.js";
+import JoinPage from "./JoinPage";
 
 function renderJoinPage() {
     return render(

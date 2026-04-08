@@ -2,7 +2,7 @@ import { TrophyOutlined } from "@ant-design/icons";
 import { Card, List, Space, Tag, Typography } from "antd";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { getResults } from "../../api.js";
+import { getResults } from "../../api";
 
 const { Title, Text } = Typography;
 

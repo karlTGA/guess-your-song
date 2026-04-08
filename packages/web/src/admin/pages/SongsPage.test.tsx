@@ -3,9 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { ConfigProvider } from "antd";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import * as api from "../../api.js";
-import { AuthProvider } from "../../contexts/AuthContext.js";
-import SongsPage from "./SongsPage.js";
+import * as api from "../../api";
+import { AuthProvider } from "../../contexts/AuthContext";
+import SongsPage from "./SongsPage";
 
 function renderSongsPage() {
     localStorage.setItem("token", "fake-jwt-token");

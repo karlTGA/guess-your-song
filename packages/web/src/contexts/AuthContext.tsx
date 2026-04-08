@@ -6,7 +6,7 @@ import {
     useEffect,
     useState,
 } from "react";
-import { login as apiLogin, register as apiRegister } from "../api.js";
+import { login as apiLogin, register as apiRegister } from "../api";
 
 interface AuthState {
     token: string | null;

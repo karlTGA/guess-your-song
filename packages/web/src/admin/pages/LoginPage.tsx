@@ -1,7 +1,7 @@
 import { Alert, Button, Card, Form, Input, Typography } from "antd";
 import { useState } from "react";
 import { Navigate } from "react-router-dom";
-import { useAuth } from "../../contexts/AuthContext.js";
+import { useAuth } from "../../contexts/AuthContext";
 
 const { Title } = Typography;
 

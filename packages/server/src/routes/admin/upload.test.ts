@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import type { FastifyInstance } from "fastify";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { buildTestApp } from "../../test/helpers.js";
+import { buildTestApp } from "../../test/helpers";
 
 const TEST_UPLOAD_DIR = "./test-uploads";
 

@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { ConfigProvider } from "antd";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it } from "vitest";
-import ResultsPage from "./ResultsPage.js";
+import ResultsPage from "./ResultsPage";
 
 function renderResultsPage() {
     localStorage.setItem("playerName", "Alice");

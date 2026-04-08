@@ -12,14 +12,14 @@ import {
     Route,
     Routes,
 } from "react-router-dom";
-import LoginPage from "./admin/pages/LoginPage.js";
-import PlaylistsPage from "./admin/pages/PlaylistsPage.js";
-import SessionsPage from "./admin/pages/SessionsPage.js";
-import SongsPage from "./admin/pages/SongsPage.js";
-import { AuthProvider, useAuth } from "./contexts/AuthContext.js";
-import JoinPage from "./game/pages/JoinPage.js";
-import PlayPage from "./game/pages/PlayPage.js";
-import ResultsPage from "./game/pages/ResultsPage.js";
+import LoginPage from "./admin/pages/LoginPage";
+import PlaylistsPage from "./admin/pages/PlaylistsPage";
+import SessionsPage from "./admin/pages/SessionsPage";
+import SongsPage from "./admin/pages/SongsPage";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import JoinPage from "./game/pages/JoinPage";
+import PlayPage from "./game/pages/PlayPage";
+import ResultsPage from "./game/pages/ResultsPage";
 
 const { Header, Content, Sider } = Layout;
 

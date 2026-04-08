@@ -6,13 +6,13 @@ import multipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
 import Fastify, { type FastifyInstance } from "fastify";
 import mongoose from "mongoose";
-import type { AppConfig } from "./config.js";
-import { authRoutes } from "./routes/admin/auth.js";
-import { playlistRoutes } from "./routes/admin/playlists.js";
-import { sessionRoutes } from "./routes/admin/sessions.js";
-import { songRoutes } from "./routes/admin/songs.js";
-import { gameRoutes } from "./routes/game/game.js";
-import { StorageService } from "./services/storageService.js";
+import type { AppConfig } from "./config";
+import { authRoutes } from "./routes/admin/auth";
+import { playlistRoutes } from "./routes/admin/playlists";
+import { sessionRoutes } from "./routes/admin/sessions";
+import { songRoutes } from "./routes/admin/songs";
+import { gameRoutes } from "./routes/game/game";
+import { StorageService } from "./services/storageService";
 
 declare module "fastify" {
     interface FastifyInstance {

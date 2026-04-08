@@ -10,7 +10,7 @@ import {
     Typography,
 } from "antd";
 import { useCallback, useEffect, useState } from "react";
-import { createSession, getPlaylists } from "../../api.js";
+import { createSession, getPlaylists } from "../../api";
 
 const { Title, Text } = Typography;
 

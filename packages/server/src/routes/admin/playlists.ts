@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
-import { PlaylistModel } from "../../models/Playlist.js";
-import { authenticate } from "../../plugins/auth.js";
+import { PlaylistModel } from "../../models/Playlist";
+import { authenticate } from "../../plugins/auth";
 
 export async function playlistRoutes(app: FastifyInstance) {
     app.addHook("onRequest", authenticate);
