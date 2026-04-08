@@ -10,7 +10,7 @@ import {
     Typography,
 } from "antd";
 import { useCallback, useEffect, useState } from "react";
-import { createSession, getPlaylists } from "../../api";
+import { createSession, getPlaylists, startSession } from "../../api";
 
 const { Title, Text } = Typography;
 
@@ -59,6 +59,20 @@ export default function SessionsPage() {
         }
     };
 
+    const handleStart = async (code: string) => {
+        try {
+            const updated = await startSession(code);
+            setSessions((prev) =>
+                prev.map((s) =>
+                    s.code === code ? { ...s, status: updated.status } : s,
+                ),
+            );
+            message.success("Game started!");
+        } catch {
+            message.error("Failed to start game");
+        }
+    };
+
     return (
         <div>
             <Space
@@ -89,6 +103,15 @@ export default function SessionsPage() {
                                 {s.code}
                             </Tag>
                             <Tag>{s.status}</Tag>
+                            {s.status === "waiting" && (
+                                <Button
+                                    type="primary"
+                                    size="small"
+                                    onClick={() => handleStart(s.code)}
+                                >
+                                    Start Game
+                                </Button>
+                            )}
                         </div>
                     ))}
                 </div>

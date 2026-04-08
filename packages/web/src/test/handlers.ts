@@ -157,6 +157,14 @@ export const handlers = [
         );
     }),
 
+    http.post("/api/admin/sessions/:code/start", ({ params }) => {
+        return HttpResponse.json({
+            _id: "sess-new",
+            code: params.code,
+            status: "playing",
+        });
+    }),
+
     // Game (public)
     http.get("/api/game/sessions/:code", ({ params }) => {
         if (params.code === "ABC123") {

@@ -152,6 +152,13 @@ export function createSession(data: {
     );
 }
 
+export function startSession(code: string) {
+    return request<{ _id: string; code: string; status: string }>(
+        `/admin/sessions/${code}/start`,
+        { method: "POST" },
+    );
+}
+
 // Game (public)
 export function getSessionInfo(code: string) {
     return request<{

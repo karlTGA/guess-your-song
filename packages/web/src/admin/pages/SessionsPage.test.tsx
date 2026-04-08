@@ -76,4 +76,61 @@ describe("SessionsPage", () => {
             expect(screen.getAllByText("XYZ789").length).toBeGreaterThan(0);
         });
     });
+
+    it("admin can start a waiting session", async () => {
+        const startSpy = vi.spyOn(api, "startSession");
+        const createSpy = vi.spyOn(api, "createSession");
+        const user = userEvent.setup();
+        renderSessionsPage();
+
+        // Wait for playlists to load
+        await waitFor(() => {
+            expect(screen.getAllByText("Classic Hits").length).toBeGreaterThan(
+                0,
+            );
+        });
+
+        // Create a session first
+        await user.click(
+            screen.getAllByRole("button", { name: /create session/i })[0],
+        );
+        await waitFor(() => {
+            expect(screen.getByRole("dialog")).toBeInTheDocument();
+        });
+        const modal = screen.getByRole("dialog");
+        const selectInput = within(modal).getByRole("combobox");
+        await user.click(selectInput);
+        await waitFor(() => {
+            expect(screen.getAllByText("Classic Hits").length).toBeGreaterThan(
+                0,
+            );
+        });
+        const options = screen.getAllByText("Classic Hits");
+        await user.click(options[options.length - 1]);
+        await user.click(within(modal).getByRole("button", { name: /ok/i }));
+
+        await waitFor(() => {
+            expect(createSpy).toHaveBeenCalled();
+        });
+
+        // Wait for session to appear with Start Game button
+        const startButtons = await screen.findAllByRole("button", {
+            name: /start game/i,
+        });
+        expect(startButtons.length).toBeGreaterThan(0);
+
+        // Click Start Game
+        await user.click(startButtons[0]);
+
+        await waitFor(() => {
+            expect(startSpy).toHaveBeenCalledWith("XYZ789");
+        });
+
+        // After starting, the Start Game button should disappear (status is now "playing")
+        await waitFor(() => {
+            expect(
+                screen.queryByRole("button", { name: /start game/i }),
+            ).not.toBeInTheDocument();
+        });
+    });
 });
