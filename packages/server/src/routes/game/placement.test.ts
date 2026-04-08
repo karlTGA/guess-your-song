@@ -95,7 +95,21 @@ describe("game placement and round flow", () => {
         expect(response.statusCode).toBe(200);
         const body = response.json();
         expect(body.correct).toBe(true);
-        expect(body.songYear).toBeDefined();
+        expect(body.song).toBeDefined();
+        expect(body.song._id).toBeDefined();
+        expect(body.song.title).toBeDefined();
+        expect(body.song.artist).toBeDefined();
+        expect(body.song.year).toBeDefined();
+        expect(body.player).toBeDefined();
+        expect(body.player.name).toBe("Alice");
+        expect(body.player.timeline).toHaveLength(1);
+        expect(body.player.timeline[0]).toMatchObject({
+            _id: expect.any(String),
+            title: expect.any(String),
+            artist: expect.any(String),
+            year: expect.any(Number),
+        });
+        expect(body.player.score).toBe(1);
     });
 
     it("correct placement adds song to player timeline and scores a point", async () => {
@@ -113,6 +127,12 @@ describe("game placement and round flow", () => {
 
         const state = stateRes.json();
         expect(state.player.timeline).toHaveLength(1);
+        expect(state.player.timeline[0]).toMatchObject({
+            _id: expect.any(String),
+            title: expect.any(String),
+            artist: expect.any(String),
+            year: expect.any(Number),
+        });
         expect(state.player.score).toBe(1);
     });
 
@@ -218,5 +238,12 @@ describe("game placement and round flow", () => {
         expect(results.players).toHaveLength(1);
         expect(results.players[0].name).toBe("Alice");
         expect(results.players[0].score).toBeGreaterThanOrEqual(0);
+        expect(results.players[0].timeline.length).toBeGreaterThan(0);
+        expect(results.players[0].timeline[0]).toMatchObject({
+            _id: expect.any(String),
+            title: expect.any(String),
+            artist: expect.any(String),
+            year: expect.any(Number),
+        });
     });
 });

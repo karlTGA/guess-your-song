@@ -156,6 +156,7 @@ describe("game public API", () => {
         expect(state.status).toBe("playing");
         expect(state.currentRound).toBeDefined();
         expect(state.currentRound.songId).toBeDefined();
+        expect(state.currentRound.audioFilename).toBeDefined();
         expect(state.player).toBeDefined();
         expect(state.player.name).toBe("Alice");
         expect(state.player.timeline).toEqual([]);

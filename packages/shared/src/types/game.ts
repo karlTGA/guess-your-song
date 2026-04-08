@@ -47,8 +47,22 @@ export interface PlaceSongInput {
 
 export interface PlaceSongResult {
     correct: boolean;
-    songYear: number;
-    message: string;
+    song: {
+        _id: string;
+        title: string;
+        artist: string;
+        year: number;
+    };
+    player: {
+        name: string;
+        timeline: {
+            _id: string;
+            title: string;
+            artist: string;
+            year: number;
+        }[];
+        score: number;
+    };
 }
 
 export const DEFAULT_GAME_CONFIG: GameConfig = {

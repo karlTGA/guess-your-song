@@ -4,6 +4,10 @@
 
 Guess Your Song — a Hitster-style music guessing game. Yarn 4 monorepo with three packages: `shared` (types), `server` (Fastify API), `web` (React SPA).
 
+## Game Rules
+
+Player get one random song after another and should place the song on the correct position in the timeline.
+
 ## Tech Stack
 
 - **Language**: TypeScript (strict), ES2022 target

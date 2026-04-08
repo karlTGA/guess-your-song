@@ -67,12 +67,36 @@ export async function gameRoutes(app: FastifyInstance) {
                 ? session.rounds[session.currentRoundIndex]
                 : null;
 
+        // Hydrate current round with audio filename
+        let currentRoundData = null;
+        if (currentRound) {
+            const roundSong = await SongModel.findById(currentRound.songId);
+            currentRoundData = {
+                songId: currentRound.songId,
+                audioFilename: roundSong?.audioFilename ?? "",
+                startedAt: currentRound.startedAt?.toISOString(),
+            };
+        }
+
+        // Hydrate player timeline with song details
+        const hydratedTimeline = await Promise.all(
+            player.timeline.map(async (entry) => {
+                const song = await SongModel.findById(entry.songId);
+                return {
+                    _id: entry.songId.toString(),
+                    title: song?.title ?? "",
+                    artist: song?.artist ?? "",
+                    year: song?.year ?? 0,
+                };
+            }),
+        );
+
         return reply.send({
             status: session.status,
-            currentRound: currentRound ? { songId: currentRound.songId } : null,
+            currentRound: currentRoundData,
             player: {
                 name: player.name,
-                timeline: player.timeline,
+                timeline: hydratedTimeline,
                 score: player.score,
             },
             totalRounds,
@@ -164,12 +188,32 @@ export async function gameRoutes(app: FastifyInstance) {
 
         await session.save();
 
+        // Hydrate player timeline for response
+        const hydratedTimeline = await Promise.all(
+            player.timeline.map(async (entry) => {
+                const song = await SongModel.findById(entry.songId);
+                return {
+                    _id: entry.songId.toString(),
+                    title: song?.title ?? "",
+                    artist: song?.artist ?? "",
+                    year: song?.year ?? 0,
+                };
+            }),
+        );
+
         return reply.send({
             correct: result.correct,
-            songYear: currentSong.year,
-            message: result.correct
-                ? "Correct placement!"
-                : `Wrong! The song was from ${currentSong.year}.`,
+            song: {
+                _id: currentSong._id.toString(),
+                title: currentSong.title,
+                artist: currentSong.artist,
+                year: currentSong.year,
+            },
+            player: {
+                name: player.name,
+                timeline: hydratedTimeline,
+                score: player.score,
+            },
         });
     });
 
@@ -181,13 +225,30 @@ export async function gameRoutes(app: FastifyInstance) {
             return reply.status(404).send({ error: "Session not found" });
         }
 
+        const playersWithTimelines = await Promise.all(
+            session.players.map(async (p) => {
+                const hydratedTimeline = await Promise.all(
+                    p.timeline.map(async (entry) => {
+                        const song = await SongModel.findById(entry.songId);
+                        return {
+                            _id: entry.songId.toString(),
+                            title: song?.title ?? "",
+                            artist: song?.artist ?? "",
+                            year: song?.year ?? 0,
+                        };
+                    }),
+                );
+                return {
+                    name: p.name,
+                    score: p.score,
+                    timeline: hydratedTimeline,
+                };
+            }),
+        );
+
         return reply.send({
             status: session.status,
-            players: session.players.map((p) => ({
-                name: p.name,
-                score: p.score,
-                timeline: p.timeline,
-            })),
+            players: playersWithTimelines,
         });
     });
 }
