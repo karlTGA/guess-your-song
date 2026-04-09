@@ -50,9 +50,7 @@ describe("StartGamePage", () => {
         await user.type(screen.getByLabelText(/your name/i), "Alice");
 
         // Click start
-        await user.click(
-            screen.getAllByRole("button", { name: /start/i })[0],
-        );
+        await user.click(screen.getAllByRole("button", { name: /start/i })[0]);
 
         await waitFor(() => {
             expect(screen.getByText("Play Page")).toBeInTheDocument();

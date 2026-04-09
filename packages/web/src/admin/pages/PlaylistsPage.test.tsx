@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+    fireEvent,
+    render,
+    screen,
+    waitFor,
+    within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ConfigProvider } from "antd";
 import { MemoryRouter } from "react-router-dom";
@@ -122,10 +128,7 @@ describe("PlaylistsPage", () => {
         const modal = screen.getByRole("dialog");
 
         // Fill in name
-        await user.type(
-            within(modal).getByLabelText(/name/i),
-            "My Playlist",
-        );
+        await user.type(within(modal).getByLabelText(/name/i), "My Playlist");
 
         // Should see a song selector — open it and pick a song
         const songSelect = within(modal).getByRole("combobox");
@@ -137,9 +140,7 @@ describe("PlaylistsPage", () => {
                 screen.getByTitle("Bohemian Rhapsody - Queen (1975)"),
             ).toBeInTheDocument();
         });
-        fireEvent.click(
-            screen.getByTitle("Bohemian Rhapsody - Queen (1975)"),
-        );
+        fireEvent.click(screen.getByTitle("Bohemian Rhapsody - Queen (1975)"));
 
         // Submit the modal
         await user.click(within(modal).getByRole("button", { name: /ok/i }));
@@ -184,9 +185,12 @@ describe("PlaylistsPage", () => {
         await user.click(within(modal).getByRole("button", { name: /ok/i }));
 
         await waitFor(() => {
-            expect(updateSpy).toHaveBeenCalledWith("pl1", expect.objectContaining({
-                songs: expect.any(Array),
-            }));
+            expect(updateSpy).toHaveBeenCalledWith(
+                "pl1",
+                expect.objectContaining({
+                    songs: expect.any(Array),
+                }),
+            );
         });
     }, 15000);
 
@@ -214,9 +218,9 @@ describe("PlaylistsPage", () => {
 
         // The songs should be pre-selected as tags with remove buttons
         // Remove a song by clicking its close icon within the select component
-        const selectContainer = within(modal).getByRole("combobox").closest(
-            ".ant-select",
-        ) as HTMLElement;
+        const selectContainer = within(modal)
+            .getByRole("combobox")
+            .closest(".ant-select") as HTMLElement;
         const removeIcons = within(selectContainer).getAllByLabelText("close");
         expect(removeIcons.length).toBeGreaterThan(0);
         fireEvent.click(removeIcons[0]);

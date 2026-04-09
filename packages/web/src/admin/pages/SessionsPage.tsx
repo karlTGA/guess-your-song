@@ -1,4 +1,8 @@
-import { PlusOutlined } from "@ant-design/icons";
+import {
+    DeleteOutlined,
+    PlusOutlined,
+    ReloadOutlined,
+} from "@ant-design/icons";
 import {
     Button,
     Form,
@@ -6,11 +10,19 @@ import {
     message,
     Select,
     Space,
+    Table,
     Tag,
     Typography,
 } from "antd";
+import type { ColumnsType } from "antd/es/table";
 import { useCallback, useEffect, useState } from "react";
-import { createSession, getPlaylists, startSession } from "../../api";
+import {
+    createSession,
+    deleteSession,
+    getActiveSessions,
+    getPlaylists,
+    startSession,
+} from "../../api";
 
 const { Title, Text } = Typography;
 
@@ -20,15 +32,21 @@ interface Playlist {
     songs: string[];
 }
 
-interface Session {
+interface ActiveSession {
     _id: string;
     code: string;
-    status: string;
+    status: "waiting" | "playing";
+    playlist: { _id: string; name: string };
+    playerCount: number;
+    currentRoundIndex: number;
+    totalRounds: number;
+    config: { roundTimerSeconds: number; maxPlayers: number };
+    createdAt: string;
 }
 
 export default function SessionsPage() {
     const [playlists, setPlaylists] = useState<Playlist[]>([]);
-    const [sessions, setSessions] = useState<Session[]>([]);
+    const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([]);
     const [modalOpen, setModalOpen] = useState(false);
     const [form] = Form.useForm();
 
@@ -41,19 +59,32 @@ export default function SessionsPage() {
         }
     }, []);
 
+    const loadActiveSessions = useCallback(async () => {
+        try {
+            const data = await getActiveSessions();
+            setActiveSessions(data);
+        } catch {
+            // silently ignore polling errors
+        }
+    }, []);
+
     useEffect(() => {
         loadPlaylists();
-    }, [loadPlaylists]);
+        loadActiveSessions();
+    }, [loadPlaylists, loadActiveSessions]);
+
+    useEffect(() => {
+        const interval = setInterval(loadActiveSessions, 5000);
+        return () => clearInterval(interval);
+    }, [loadActiveSessions]);
 
     const handleCreate = async (values: { playlistId: string }) => {
         try {
-            const session = await createSession({
-                playlistId: values.playlistId,
-            });
-            setSessions((prev) => [...prev, session]);
-            message.success(`Session created with code: ${session.code}`);
+            await createSession({ playlistId: values.playlistId });
+            message.success("Session created!");
             setModalOpen(false);
             form.resetFields();
+            loadActiveSessions();
         } catch {
             message.error("Failed to create session");
         }
@@ -61,17 +92,87 @@ export default function SessionsPage() {
 
     const handleStart = async (code: string) => {
         try {
-            const updated = await startSession(code);
-            setSessions((prev) =>
-                prev.map((s) =>
-                    s.code === code ? { ...s, status: updated.status } : s,
-                ),
-            );
+            await startSession(code);
             message.success("Game started!");
+            loadActiveSessions();
         } catch {
             message.error("Failed to start game");
         }
     };
+
+    const handleDelete = async (code: string) => {
+        try {
+            await deleteSession(code);
+            message.success("Session deleted");
+            loadActiveSessions();
+        } catch {
+            message.error("Failed to delete session");
+        }
+    };
+
+    const columns: ColumnsType<ActiveSession> = [
+        {
+            title: "Code",
+            dataIndex: "code",
+            key: "code",
+            render: (code: string) => (
+                <Tag color="blue" style={{ fontSize: 16 }}>
+                    {code}
+                </Tag>
+            ),
+        },
+        {
+            title: "Status",
+            dataIndex: "status",
+            key: "status",
+            render: (status: string) => (
+                <Tag color={status === "playing" ? "green" : "orange"}>
+                    {status}
+                </Tag>
+            ),
+        },
+        {
+            title: "Playlist",
+            dataIndex: ["playlist", "name"],
+            key: "playlist",
+        },
+        {
+            title: "Players",
+            dataIndex: "playerCount",
+            key: "playerCount",
+        },
+        {
+            title: "Round",
+            key: "round",
+            render: (_: unknown, record: ActiveSession) =>
+                `${record.currentRoundIndex} / ${record.totalRounds}`,
+        },
+        {
+            title: "Actions",
+            key: "actions",
+            render: (_: unknown, record: ActiveSession) => (
+                <Space>
+                    {record.status === "waiting" && (
+                        <Button
+                            type="primary"
+                            size="small"
+                            onClick={() => handleStart(record.code)}
+                        >
+                            Start Game
+                        </Button>
+                    )}
+                    <Button
+                        danger
+                        size="small"
+                        icon={<DeleteOutlined />}
+                        onClick={() => handleDelete(record.code)}
+                    >
+                        Delete
+                    </Button>
+                </Space>
+            ),
+        },
+    ];
 
     return (
         <div>
@@ -85,37 +186,30 @@ export default function SessionsPage() {
                 <Title level={4} style={{ margin: 0 }}>
                     Game Sessions
                 </Title>
-                <Button
-                    type="primary"
-                    icon={<PlusOutlined />}
-                    onClick={() => setModalOpen(true)}
-                >
-                    Create Session
-                </Button>
+                <Space>
+                    <Button
+                        icon={<ReloadOutlined />}
+                        onClick={loadActiveSessions}
+                    >
+                        Refresh
+                    </Button>
+                    <Button
+                        type="primary"
+                        icon={<PlusOutlined />}
+                        onClick={() => setModalOpen(true)}
+                    >
+                        Create Session
+                    </Button>
+                </Space>
             </Space>
 
-            {sessions.length > 0 && (
-                <div style={{ marginBottom: 16 }}>
-                    {sessions.map((s) => (
-                        <div key={s._id} style={{ marginBottom: 8 }}>
-                            <Text>Join Code: </Text>
-                            <Tag color="blue" style={{ fontSize: 18 }}>
-                                {s.code}
-                            </Tag>
-                            <Tag>{s.status}</Tag>
-                            {s.status === "waiting" && (
-                                <Button
-                                    type="primary"
-                                    size="small"
-                                    onClick={() => handleStart(s.code)}
-                                >
-                                    Start Game
-                                </Button>
-                            )}
-                        </div>
-                    ))}
-                </div>
-            )}
+            <Table
+                dataSource={activeSessions}
+                columns={columns}
+                rowKey="_id"
+                pagination={false}
+                style={{ marginBottom: 16 }}
+            />
 
             <div style={{ marginBottom: 16 }}>
                 <Text type="secondary">

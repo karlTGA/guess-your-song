@@ -1,5 +1,6 @@
 export type {
     Admin,
+    AdminSessionOverview,
     AuthResponse,
     LoginInput,
     RegisterInput,

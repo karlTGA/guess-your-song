@@ -30,18 +30,36 @@ const playlists = [
     },
 ];
 
-const sessions = [
+const initialSessions = [
     {
         _id: "sess1",
         code: "ABC123",
-        playlist: "pl1",
         status: "waiting",
-        config: { roundTimerSeconds: 30, maxPlayers: 20 },
-        players: [],
-        rounds: [],
+        playlist: { _id: "pl1", name: "Classic Hits" },
+        playerCount: 0,
         currentRoundIndex: 0,
+        totalRounds: 2,
+        config: { roundTimerSeconds: 30, maxPlayers: 20 },
+        createdAt: "2024-01-01T00:00:00.000Z",
+    },
+    {
+        _id: "sess2",
+        code: "DEF456",
+        status: "playing",
+        playlist: { _id: "pl1", name: "Classic Hits" },
+        playerCount: 3,
+        currentRoundIndex: 1,
+        totalRounds: 2,
+        config: { roundTimerSeconds: 30, maxPlayers: 20 },
+        createdAt: "2024-01-02T00:00:00.000Z",
     },
 ];
+
+let sessions: Record<string, unknown>[] = structuredClone(initialSessions);
+
+export function resetMockData() {
+    sessions = structuredClone(initialSessions);
+}
 
 export const handlers = [
     // Auth
@@ -148,31 +166,43 @@ export const handlers = [
 
     http.post("/api/admin/sessions", async ({ request }) => {
         const body = (await request.json()) as Record<string, unknown>;
-        return HttpResponse.json(
-            {
-                _id: "sess-new",
-                code: "XYZ789",
-                playlist: body.playlistId,
-                status: "waiting",
-                config: {
-                    roundTimerSeconds: 30,
-                    maxPlayers: 20,
-                    ...((body.config as object) || {}),
-                },
-                players: [],
-                rounds: [],
-                currentRoundIndex: 0,
+        const newSession = {
+            _id: "sess-new",
+            code: "XYZ789",
+            status: "waiting",
+            playlist: { _id: body.playlistId, name: "Classic Hits" },
+            playerCount: 0,
+            currentRoundIndex: 0,
+            totalRounds: 2,
+            config: {
+                roundTimerSeconds: 30,
+                maxPlayers: 20,
+                ...((body.config as object) || {}),
             },
-            { status: 201 },
-        );
+            createdAt: new Date().toISOString(),
+        };
+        sessions.push(newSession);
+        return HttpResponse.json(newSession, { status: 201 });
     }),
 
     http.post("/api/admin/sessions/:code/start", ({ params }) => {
+        const session = sessions.find((s) => s.code === params.code);
+        if (session) {
+            session.status = "playing";
+        }
         return HttpResponse.json({
             _id: "sess-new",
             code: params.code,
             status: "playing",
         });
+    }),
+
+    http.delete("/api/admin/sessions/:code", ({ params }) => {
+        const index = sessions.findIndex((s) => s.code === params.code);
+        if (index !== -1) {
+            sessions.splice(index, 1);
+        }
+        return new HttpResponse(null, { status: 204 });
     }),
 
     // Game (public)

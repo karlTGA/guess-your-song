@@ -165,6 +165,22 @@ export function deletePlaylist(id: string) {
 }
 
 // Sessions
+export function getActiveSessions() {
+    return request<
+        {
+            _id: string;
+            code: string;
+            status: "waiting" | "playing";
+            playlist: { _id: string; name: string };
+            playerCount: number;
+            currentRoundIndex: number;
+            totalRounds: number;
+            config: { roundTimerSeconds: number; maxPlayers: number };
+            createdAt: string;
+        }[]
+    >("/admin/sessions");
+}
+
 export function createSession(data: {
     playlistId: string;
     config?: { roundTimerSeconds?: number; maxPlayers?: number };
@@ -180,6 +196,10 @@ export function startSession(code: string) {
         `/admin/sessions/${code}/start`,
         { method: "POST" },
     );
+}
+
+export function deleteSession(code: string) {
+    return request<void>(`/admin/sessions/${code}`, { method: "DELETE" });
 }
 
 // Game (public)

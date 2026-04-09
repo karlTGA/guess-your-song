@@ -61,15 +61,7 @@ export default function PlayPage() {
                 return;
             }
             setPlacementResult({ correct: result.correct, song: result.song });
-            setGameState((prev) =>
-                prev
-                    ? {
-                          ...prev,
-                          player: result.player,
-                          currentRoundIndex: prev.currentRoundIndex + 1,
-                      }
-                    : prev,
-            );
+            await loadState();
         } catch {
             // ignore
         }
@@ -98,8 +90,7 @@ export default function PlayPage() {
     }
 
     const { player, totalRounds, currentRoundIndex, currentRound } = gameState;
-    const hasAudio =
-        currentRound && currentRound.audioFilename !== "";
+    const hasAudio = currentRound && currentRound.audioFilename !== "";
     const audioSrc = hasAudio
         ? `/audio/${currentRound.audioFilename}`
         : undefined;

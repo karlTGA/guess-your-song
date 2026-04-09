@@ -130,4 +130,152 @@ describe("admin game sessions API", () => {
         expect(started.rounds).toHaveLength(1);
         expect(started.rounds[0].startedAt).toBeDefined();
     });
+
+    it("admin can list active sessions with player count and playlist name", async () => {
+        // Create a waiting session
+        const waitingRes = await app.inject({
+            method: "POST",
+            url: "/api/admin/sessions",
+            headers: { authorization: `Bearer ${token}` },
+            payload: { playlistId: playlist._id },
+        });
+        const waitingSession = waitingRes.json();
+
+        // Create a playing session (start it)
+        const playingRes = await app.inject({
+            method: "POST",
+            url: "/api/admin/sessions",
+            headers: { authorization: `Bearer ${token}` },
+            payload: { playlistId: playlist._id },
+        });
+        const playingSession = playingRes.json();
+        await app.inject({
+            method: "POST",
+            url: `/api/admin/sessions/${playingSession.code}/start`,
+            headers: { authorization: `Bearer ${token}` },
+        });
+
+        // Have a player join the playing session via game route
+        await app.inject({
+            method: "POST",
+            url: `/api/game/sessions/${playingSession.code}/join`,
+            payload: { playerName: "Alice" },
+        });
+
+        // Create a finished session (create, start, then play through all rounds)
+        const finishedRes = await app.inject({
+            method: "POST",
+            url: "/api/admin/sessions",
+            headers: { authorization: `Bearer ${token}` },
+            payload: { playlistId: playlist._id },
+        });
+        const finishedSession = finishedRes.json();
+        await app.inject({
+            method: "POST",
+            url: `/api/admin/sessions/${finishedSession.code}/start`,
+            headers: { authorization: `Bearer ${token}` },
+        });
+        await app.inject({
+            method: "POST",
+            url: `/api/game/sessions/${finishedSession.code}/join`,
+            payload: { playerName: "Bob" },
+        });
+        // Skip through all 3 rounds to finish the game
+        for (let i = 0; i < 3; i++) {
+            await app.inject({
+                method: "POST",
+                url: `/api/game/sessions/${finishedSession.code}/skip`,
+                payload: { playerName: "Bob" },
+            });
+        }
+
+        // GET active sessions
+        const response = await app.inject({
+            method: "GET",
+            url: "/api/admin/sessions",
+            headers: { authorization: `Bearer ${token}` },
+        });
+
+        expect(response.statusCode).toBe(200);
+        const activeSessions = response.json();
+
+        // Should only include waiting + playing, not finished
+        expect(activeSessions).toHaveLength(2);
+
+        const codes = activeSessions.map((s: { code: string }) => s.code);
+        expect(codes).toContain(waitingSession.code);
+        expect(codes).toContain(playingSession.code);
+        expect(codes).not.toContain(finishedSession.code);
+
+        // Check that each session has the expected shape
+        for (const session of activeSessions) {
+            expect(session.code).toBeDefined();
+            expect(session.status).toMatch(/^(waiting|playing)$/);
+            expect(session.playlist).toEqual(
+                expect.objectContaining({
+                    _id: playlist._id,
+                    name: "Test Playlist",
+                }),
+            );
+            expect(typeof session.playerCount).toBe("number");
+            expect(typeof session.currentRoundIndex).toBe("number");
+            expect(typeof session.totalRounds).toBe("number");
+            expect(session.totalRounds).toBe(3); // playlist has 3 songs
+            expect(session.config).toBeDefined();
+            expect(session.createdAt).toBeDefined();
+        }
+
+        // Check player count for playing session (1 player joined)
+        const playing = activeSessions.find(
+            (s: { code: string }) => s.code === playingSession.code,
+        );
+        expect(playing.playerCount).toBe(1);
+        expect(playing.status).toBe("playing");
+
+        // Check waiting session has 0 players
+        const waiting = activeSessions.find(
+            (s: { code: string }) => s.code === waitingSession.code,
+        );
+        expect(waiting.playerCount).toBe(0);
+        expect(waiting.status).toBe("waiting");
+    });
+
+    it("admin can delete a session", async () => {
+        const createRes = await app.inject({
+            method: "POST",
+            url: "/api/admin/sessions",
+            headers: { authorization: `Bearer ${token}` },
+            payload: { playlistId: playlist._id },
+        });
+        const session = createRes.json();
+
+        const response = await app.inject({
+            method: "DELETE",
+            url: `/api/admin/sessions/${session.code}`,
+            headers: { authorization: `Bearer ${token}` },
+        });
+
+        expect(response.statusCode).toBe(204);
+
+        // Session should no longer exist
+        const listRes = await app.inject({
+            method: "GET",
+            url: "/api/admin/sessions",
+            headers: { authorization: `Bearer ${token}` },
+        });
+        const sessions = listRes.json();
+        expect(
+            sessions.find((s: { code: string }) => s.code === session.code),
+        ).toBeUndefined();
+    });
+
+    it("delete returns 404 for non-existent session", async () => {
+        const response = await app.inject({
+            method: "DELETE",
+            url: "/api/admin/sessions/NOPE99",
+            headers: { authorization: `Bearer ${token}` },
+        });
+
+        expect(response.statusCode).toBe(404);
+    });
 });

@@ -21,6 +21,33 @@ async function generateUniqueCode(): Promise<string> {
 export async function sessionRoutes(app: FastifyInstance) {
     app.addHook("onRequest", authenticate);
 
+    app.get("/api/admin/sessions", async (_request, reply) => {
+        const sessions = await GameSessionModel.find({
+            status: { $in: ["waiting", "playing"] },
+        }).populate("playlist", "name songs");
+
+        const result = sessions.map((s) => {
+            const playlist = s.playlist as unknown as {
+                _id: string;
+                name: string;
+                songs: unknown[];
+            };
+            return {
+                _id: s._id,
+                code: s.code,
+                status: s.status,
+                playlist: { _id: playlist._id, name: playlist.name },
+                playerCount: s.players.length,
+                currentRoundIndex: s.currentRoundIndex,
+                totalRounds: playlist.songs.length,
+                config: s.config,
+                createdAt: s.createdAt,
+            };
+        });
+
+        return reply.send(result);
+    });
+
     app.post("/api/admin/sessions", async (request, reply) => {
         const { playlistId, config } = request.body as {
             playlistId: string;
@@ -77,5 +104,16 @@ export async function sessionRoutes(app: FastifyInstance) {
         await session.save();
 
         return reply.send(session);
+    });
+
+    app.delete("/api/admin/sessions/:code", async (request, reply) => {
+        const { code } = request.params as { code: string };
+
+        const session = await GameSessionModel.findOneAndDelete({ code });
+        if (!session) {
+            return reply.status(404).send({ error: "Session not found" });
+        }
+
+        return reply.status(204).send();
     });
 }

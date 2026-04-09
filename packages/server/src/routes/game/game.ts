@@ -43,9 +43,7 @@ export async function gameRoutes(app: FastifyInstance) {
         }
 
         if (playlist.songs.length === 0) {
-            return reply
-                .status(400)
-                .send({ error: "Playlist has no songs" });
+            return reply.status(400).send({ error: "Playlist has no songs" });
         }
 
         const code = await generateUniqueCode();

@@ -22,9 +22,11 @@ export default function StartGamePage() {
     const navigate = useNavigate();
 
     useEffect(() => {
-        getGamePlaylists().then(setPlaylists).catch(() => {
-            setError("Failed to load playlists");
-        });
+        getGamePlaylists()
+            .then(setPlaylists)
+            .catch(() => {
+                setError("Failed to load playlists");
+            });
     }, []);
 
     const handleStart = async (values: { playerName: string }) => {
