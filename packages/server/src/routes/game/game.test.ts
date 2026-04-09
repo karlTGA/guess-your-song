@@ -338,4 +338,163 @@ describe("public game creation", () => {
 
         expect(response.statusCode).toBe(400);
     });
+
+    it("user can create a game with a custom numberOfSongs", async () => {
+        const songs = [];
+        for (const s of [
+            { title: "Song A", artist: "A", year: 1980 },
+            { title: "Song B", artist: "B", year: 1990 },
+            { title: "Song C", artist: "C", year: 2000 },
+        ]) {
+            const res = await app.inject({
+                method: "POST",
+                url: "/api/admin/songs",
+                headers: { authorization: `Bearer ${token}` },
+                payload: s,
+            });
+            songs.push(res.json());
+        }
+
+        const playlistRes = await app.inject({
+            method: "POST",
+            url: "/api/admin/playlists",
+            headers: { authorization: `Bearer ${token}` },
+            payload: {
+                name: "Game Playlist",
+                songs: songs.map((s) => s._id),
+            },
+        });
+
+        const response = await app.inject({
+            method: "POST",
+            url: "/api/game/sessions",
+            payload: {
+                playlistId: playlistRes.json()._id,
+                playerName: "Alice",
+                numberOfSongs: 2,
+            },
+        });
+
+        expect(response.statusCode).toBe(201);
+        const session = response.json();
+        expect(session.config.numberOfSongs).toBe(2);
+        // songOrder still contains all playlist songs
+        expect(session.songOrder).toHaveLength(3);
+    });
+
+    it("numberOfSongs defaults to playlist size when omitted", async () => {
+        const songs = [];
+        for (const s of [
+            { title: "Song A", artist: "A", year: 1980 },
+            { title: "Song B", artist: "B", year: 1990 },
+            { title: "Song C", artist: "C", year: 2000 },
+        ]) {
+            const res = await app.inject({
+                method: "POST",
+                url: "/api/admin/songs",
+                headers: { authorization: `Bearer ${token}` },
+                payload: s,
+            });
+            songs.push(res.json());
+        }
+
+        const playlistRes = await app.inject({
+            method: "POST",
+            url: "/api/admin/playlists",
+            headers: { authorization: `Bearer ${token}` },
+            payload: {
+                name: "Game Playlist",
+                songs: songs.map((s) => s._id),
+            },
+        });
+
+        const response = await app.inject({
+            method: "POST",
+            url: "/api/game/sessions",
+            payload: {
+                playlistId: playlistRes.json()._id,
+                playerName: "Alice",
+            },
+        });
+
+        expect(response.statusCode).toBe(201);
+        const session = response.json();
+        expect(session.config.numberOfSongs).toBe(3);
+    });
+
+    it("cannot create a game with numberOfSongs exceeding playlist size", async () => {
+        const songs = [];
+        for (const s of [
+            { title: "Song A", artist: "A", year: 1980 },
+            { title: "Song B", artist: "B", year: 1990 },
+        ]) {
+            const res = await app.inject({
+                method: "POST",
+                url: "/api/admin/songs",
+                headers: { authorization: `Bearer ${token}` },
+                payload: s,
+            });
+            songs.push(res.json());
+        }
+
+        const playlistRes = await app.inject({
+            method: "POST",
+            url: "/api/admin/playlists",
+            headers: { authorization: `Bearer ${token}` },
+            payload: {
+                name: "Game Playlist",
+                songs: songs.map((s) => s._id),
+            },
+        });
+
+        const response = await app.inject({
+            method: "POST",
+            url: "/api/game/sessions",
+            payload: {
+                playlistId: playlistRes.json()._id,
+                playerName: "Alice",
+                numberOfSongs: 5,
+            },
+        });
+
+        expect(response.statusCode).toBe(400);
+    });
+
+    it("cannot create a game with numberOfSongs less than 1", async () => {
+        const songs = [];
+        for (const s of [
+            { title: "Song A", artist: "A", year: 1980 },
+            { title: "Song B", artist: "B", year: 1990 },
+        ]) {
+            const res = await app.inject({
+                method: "POST",
+                url: "/api/admin/songs",
+                headers: { authorization: `Bearer ${token}` },
+                payload: s,
+            });
+            songs.push(res.json());
+        }
+
+        const playlistRes = await app.inject({
+            method: "POST",
+            url: "/api/admin/playlists",
+            headers: { authorization: `Bearer ${token}` },
+            payload: {
+                name: "Game Playlist",
+                songs: songs.map((s) => s._id),
+            },
+        });
+
+        const response = await app.inject({
+            method: "POST",
+            url: "/api/game/sessions",
+            payload: {
+                playlistId: playlistRes.json()._id,
+                playerName: "Alice",
+                numberOfSongs: 0,
+            },
+        });
+
+        expect(response.statusCode).toBe(400);
+    });
 });

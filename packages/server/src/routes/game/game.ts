@@ -32,9 +32,10 @@ export async function gameRoutes(app: FastifyInstance) {
     });
 
     app.post("/api/game/sessions", async (request, reply) => {
-        const { playlistId, playerName } = request.body as {
+        const { playlistId, playerName, numberOfSongs } = request.body as {
             playlistId: string;
             playerName: string;
+            numberOfSongs?: number;
         };
 
         const playlist = await PlaylistModel.findById(playlistId);
@@ -46,13 +47,27 @@ export async function gameRoutes(app: FastifyInstance) {
             return reply.status(400).send({ error: "Playlist has no songs" });
         }
 
+        const effectiveNumberOfSongs = numberOfSongs ?? playlist.songs.length;
+
+        if (
+            effectiveNumberOfSongs < 1 ||
+            effectiveNumberOfSongs > playlist.songs.length
+        ) {
+            return reply.status(400).send({
+                error: `numberOfSongs must be between 1 and ${playlist.songs.length}`,
+            });
+        }
+
         const code = await generateUniqueCode();
         const songOrder = shuffleArray([...playlist.songs]);
 
         const session = await GameSessionModel.create({
             code,
             playlist: playlistId,
-            config: { ...DEFAULT_GAME_CONFIG },
+            config: {
+                ...DEFAULT_GAME_CONFIG,
+                numberOfSongs: effectiveNumberOfSongs,
+            },
             status: "playing",
             currentRoundIndex: 0,
             songOrder,
@@ -129,7 +144,8 @@ export async function gameRoutes(app: FastifyInstance) {
             return reply.status(404).send({ error: "Player not found" });
         }
 
-        const totalRounds = session.songOrder.length;
+        const totalRounds =
+            session.config.numberOfSongs ?? session.songOrder.length;
 
         const currentRound =
             session.rounds.length > 0
@@ -233,15 +249,18 @@ export async function gameRoutes(app: FastifyInstance) {
                 position,
             });
             player.score += 1;
+        } else {
+            player.score -= 1;
         }
 
         // Advance to next round
         currentRound.endedAt = new Date();
 
-        const totalSongs = session.songOrder.length;
+        const numberOfSongs =
+            session.config.numberOfSongs ?? session.songOrder.length;
         const nextRoundIndex = session.currentRoundIndex + 1;
 
-        if (nextRoundIndex < totalSongs) {
+        if (nextRoundIndex < numberOfSongs) {
             session.currentRoundIndex = nextRoundIndex;
             session.rounds.push({
                 songId: session.songOrder[nextRoundIndex],
@@ -309,10 +328,11 @@ export async function gameRoutes(app: FastifyInstance) {
         // Advance to next round without scoring
         currentRound.endedAt = new Date();
 
-        const totalSongs = session.songOrder.length;
+        const numberOfSongs =
+            session.config.numberOfSongs ?? session.songOrder.length;
         const nextRoundIndex = session.currentRoundIndex + 1;
 
-        if (nextRoundIndex < totalSongs) {
+        if (nextRoundIndex < numberOfSongs) {
             session.currentRoundIndex = nextRoundIndex;
             session.rounds.push({
                 songId: session.songOrder[nextRoundIndex],

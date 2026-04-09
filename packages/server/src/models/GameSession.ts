@@ -7,6 +7,7 @@ export interface IGameSession extends Document {
     config: {
         roundTimerSeconds: number;
         maxPlayers: number;
+        numberOfSongs?: number;
     };
     players: {
         name: string;
@@ -41,6 +42,7 @@ const gameSessionSchema = new Schema<IGameSession>(
         config: {
             roundTimerSeconds: { type: Number, default: 30 },
             maxPlayers: { type: Number, default: 20 },
+            numberOfSongs: { type: Number },
         },
         players: [
             {

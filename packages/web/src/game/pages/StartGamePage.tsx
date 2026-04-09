@@ -1,4 +1,13 @@
-import { Alert, Button, Card, Form, Input, List, Typography } from "antd";
+import {
+    Alert,
+    Button,
+    Card,
+    Form,
+    Input,
+    InputNumber,
+    List,
+    Typography,
+} from "antd";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createGameSession, getGamePlaylists } from "../../api";
@@ -17,9 +26,14 @@ export default function StartGamePage() {
     const [selectedPlaylist, setSelectedPlaylist] = useState<string | null>(
         null,
     );
+    const [numberOfSongs, setNumberOfSongs] = useState<number | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
+
+    const selectedPlaylistData = playlists.find(
+        (p) => p._id === selectedPlaylist,
+    );
 
     useEffect(() => {
         getGamePlaylists()
@@ -29,14 +43,23 @@ export default function StartGamePage() {
             });
     }, []);
 
+    const handleSelectPlaylist = (playlistId: string) => {
+        setSelectedPlaylist(playlistId);
+        const playlist = playlists.find((p) => p._id === playlistId);
+        if (playlist) {
+            setNumberOfSongs(playlist.songCount);
+        }
+    };
+
     const handleStart = async (values: { playerName: string }) => {
-        if (!selectedPlaylist) return;
+        if (!selectedPlaylist || !numberOfSongs) return;
         setError(null);
         setLoading(true);
         try {
             const session = await createGameSession(
                 selectedPlaylist,
                 values.playerName,
+                numberOfSongs,
             );
             localStorage.setItem("playerName", values.playerName);
             localStorage.setItem("gameCode", session.code);
@@ -75,7 +98,7 @@ export default function StartGamePage() {
                     dataSource={playlists}
                     renderItem={(playlist) => (
                         <List.Item
-                            onClick={() => setSelectedPlaylist(playlist._id)}
+                            onClick={() => handleSelectPlaylist(playlist._id)}
                             style={{
                                 cursor: "pointer",
                                 background:
@@ -95,6 +118,17 @@ export default function StartGamePage() {
                     style={{ marginBottom: 16 }}
                 />
                 <Form onFinish={handleStart} layout="vertical">
+                    {selectedPlaylistData && (
+                        <Form.Item label="Number of Songs">
+                            <InputNumber
+                                min={1}
+                                max={selectedPlaylistData.songCount}
+                                value={numberOfSongs}
+                                onChange={(value) => setNumberOfSongs(value)}
+                                style={{ width: "100%" }}
+                            />
+                        </Form.Item>
+                    )}
                     <Form.Item
                         label="Your Name"
                         name="playerName"

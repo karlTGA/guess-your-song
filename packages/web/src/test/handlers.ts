@@ -221,6 +221,7 @@ export const handlers = [
         const body = (await request.json()) as {
             playlistId: string;
             playerName: string;
+            numberOfSongs?: number;
         };
         return HttpResponse.json(
             {
@@ -228,7 +229,11 @@ export const handlers = [
                 code: "NEW123",
                 playlist: body.playlistId,
                 status: "playing",
-                config: { roundTimerSeconds: 30, maxPlayers: 20 },
+                config: {
+                    roundTimerSeconds: 30,
+                    maxPlayers: 20,
+                    numberOfSongs: body.numberOfSongs ?? 2,
+                },
                 players: [
                     {
                         name: body.playerName,

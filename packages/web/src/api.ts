@@ -214,7 +214,11 @@ export function getGamePlaylists() {
     >("/game/playlists");
 }
 
-export function createGameSession(playlistId: string, playerName: string) {
+export function createGameSession(
+    playlistId: string,
+    playerName: string,
+    numberOfSongs?: number,
+) {
     return request<{
         _id: string;
         code: string;
@@ -222,7 +226,7 @@ export function createGameSession(playlistId: string, playerName: string) {
         players: { name: string; timeline: unknown[]; score: number }[];
     }>("/game/sessions", {
         method: "POST",
-        body: JSON.stringify({ playlistId, playerName }),
+        body: JSON.stringify({ playlistId, playerName, numberOfSongs }),
     });
 }
 

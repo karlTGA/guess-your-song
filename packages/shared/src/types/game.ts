@@ -3,6 +3,7 @@ export type GameStatus = "waiting" | "playing" | "finished";
 export interface GameConfig {
     roundTimerSeconds: number;
     maxPlayers: number;
+    numberOfSongs?: number;
 }
 
 export interface PlayerTimeline {
@@ -38,6 +39,7 @@ export interface GameSession {
 
 export interface CreateGameSessionInput {
     playlistId: string;
+    numberOfSongs?: number;
     config?: Partial<GameConfig>;
 }
 
