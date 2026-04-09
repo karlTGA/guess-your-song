@@ -299,6 +299,18 @@ export const handlers = [
         });
     }),
 
+    http.post("/api/game/sessions/:code/skip", async ({ request }) => {
+        const body = (await request.json()) as { playerName: string };
+        return HttpResponse.json({
+            status: "playing",
+            player: {
+                name: body.playerName,
+                timeline: [],
+                score: 0,
+            },
+        });
+    }),
+
     http.get("/api/game/sessions/:code/results", () => {
         return HttpResponse.json({
             status: "finished",

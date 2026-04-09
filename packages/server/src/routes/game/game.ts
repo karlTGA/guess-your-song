@@ -288,6 +288,74 @@ export async function gameRoutes(app: FastifyInstance) {
         });
     });
 
+    app.post("/api/game/sessions/:code/skip", async (request, reply) => {
+        const { code } = request.params as { code: string };
+        const { playerName } = request.body as { playerName: string };
+
+        const session = await GameSessionModel.findOne({ code });
+        if (!session) {
+            return reply.status(404).send({ error: "Session not found" });
+        }
+
+        if (session.status !== "playing") {
+            return reply.status(400).send({ error: "Game is not in progress" });
+        }
+
+        const player = session.players.find((p) => p.name === playerName);
+        if (!player) {
+            return reply.status(404).send({ error: "Player not found" });
+        }
+
+        const currentRound = session.rounds[session.currentRoundIndex];
+        if (!currentRound) {
+            return reply.status(400).send({ error: "No active round" });
+        }
+
+        // Advance to next round without scoring
+        currentRound.endedAt = new Date();
+
+        const playlist = await PlaylistModel.findById(session.playlist);
+        if (!playlist) {
+            return reply.status(500).send({ error: "Playlist not found" });
+        }
+        const totalSongs = playlist.songs.length;
+        const nextRoundIndex = session.currentRoundIndex + 1;
+
+        if (nextRoundIndex < totalSongs) {
+            session.currentRoundIndex = nextRoundIndex;
+            session.rounds.push({
+                songId: playlist.songs[nextRoundIndex],
+                startedAt: new Date(),
+            });
+        } else {
+            session.status = "finished";
+        }
+
+        await session.save();
+
+        // Hydrate player timeline for response
+        const hydratedTimeline = await Promise.all(
+            player.timeline.map(async (entry) => {
+                const song = await SongModel.findById(entry.songId);
+                return {
+                    _id: entry.songId.toString(),
+                    title: song?.title ?? "",
+                    artist: song?.artist ?? "",
+                    year: song?.year ?? 0,
+                };
+            }),
+        );
+
+        return reply.send({
+            status: session.status,
+            player: {
+                name: player.name,
+                timeline: hydratedTimeline,
+                score: player.score,
+            },
+        });
+    });
+
     app.get("/api/game/sessions/:code/results", async (request, reply) => {
         const { code } = request.params as { code: string };
 

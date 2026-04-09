@@ -270,4 +270,69 @@ describe("game placement and round flow", () => {
             year: expect.any(Number),
         });
     });
+
+    it("player can skip a song", async () => {
+        const response = await app.inject({
+            method: "POST",
+            url: `/api/game/sessions/${sessionCode}/skip`,
+            payload: { playerName: "Alice" },
+        });
+
+        expect(response.statusCode).toBe(200);
+        const body = response.json();
+        expect(body.status).toBe("playing");
+        expect(body.player.name).toBe("Alice");
+        expect(body.player.timeline).toHaveLength(0);
+        expect(body.player.score).toBe(0);
+    });
+
+    it("skip advances to next round without scoring", async () => {
+        await app.inject({
+            method: "POST",
+            url: `/api/game/sessions/${sessionCode}/skip`,
+            payload: { playerName: "Alice" },
+        });
+
+        const stateRes = await app.inject({
+            method: "GET",
+            url: `/api/game/sessions/${sessionCode}/state?playerName=Alice`,
+        });
+        const state = stateRes.json();
+        expect(state.currentRoundIndex).toBe(1);
+        expect(state.player.score).toBe(0);
+        expect(state.player.timeline).toHaveLength(0);
+    });
+
+    it("skip on last round finishes the game", async () => {
+        // Skip through all 3 rounds
+        let lastResponse;
+        for (let i = 0; i < 3; i++) {
+            lastResponse = await app.inject({
+                method: "POST",
+                url: `/api/game/sessions/${sessionCode}/skip`,
+                payload: { playerName: "Alice" },
+            });
+        }
+
+        expect(lastResponse!.json().status).toBe("finished");
+    });
+
+    it("cannot skip in a non-playing session", async () => {
+        // Finish the game first
+        for (let i = 0; i < 3; i++) {
+            await app.inject({
+                method: "POST",
+                url: `/api/game/sessions/${sessionCode}/skip`,
+                payload: { playerName: "Alice" },
+            });
+        }
+
+        const response = await app.inject({
+            method: "POST",
+            url: `/api/game/sessions/${sessionCode}/skip`,
+            payload: { playerName: "Alice" },
+        });
+
+        expect(response.statusCode).toBe(400);
+    });
 });

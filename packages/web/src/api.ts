@@ -271,6 +271,25 @@ export function placeSong(code: string, playerName: string, position: number) {
     });
 }
 
+export function skipSong(code: string, playerName: string) {
+    return request<{
+        status: string;
+        player: {
+            name: string;
+            timeline: {
+                _id: string;
+                title: string;
+                artist: string;
+                year: number;
+            }[];
+            score: number;
+        };
+    }>(`/game/sessions/${code}/skip`, {
+        method: "POST",
+        body: JSON.stringify({ playerName }),
+    });
+}
+
 export function getResults(code: string) {
     return request<{
         status: string;

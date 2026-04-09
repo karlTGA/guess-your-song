@@ -1,7 +1,7 @@
 import { Alert, Button, Card, Space, Tag, Typography } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { getGameState, placeSong } from "../../api";
+import { getGameState, placeSong, skipSong } from "../../api";
 
 const { Title, Text } = Typography;
 
@@ -32,12 +32,14 @@ export default function PlayPage() {
     const [gameState, setGameState] = useState<GameState | null>(null);
     const [placementResult, setPlacementResult] =
         useState<PlacementResult | null>(null);
+    const [audioError, setAudioError] = useState(false);
 
     const loadState = useCallback(async () => {
         if (!code || !playerName) return;
         try {
             const state = await getGameState(code, playerName);
             setGameState(state);
+            setAudioError(false);
             if (state.status === "finished") {
                 navigate(`/game/${code}/results`);
             }
@@ -73,6 +75,22 @@ export default function PlayPage() {
         }
     };
 
+    const handleSkip = async () => {
+        if (!code || !playerName) return;
+        try {
+            const result = await skipSong(code, playerName);
+            if (result.status === "finished") {
+                navigate(`/game/${code}/results`);
+                return;
+            }
+            setPlacementResult(null);
+            setAudioError(false);
+            await loadState();
+        } catch {
+            // ignore
+        }
+    };
+
     if (!gameState) {
         return (
             <div style={{ textAlign: "center", padding: 32 }}>Loading...</div>
@@ -80,7 +98,9 @@ export default function PlayPage() {
     }
 
     const { player, totalRounds, currentRoundIndex, currentRound } = gameState;
-    const audioSrc = currentRound
+    const hasAudio =
+        currentRound && currentRound.audioFilename !== "";
+    const audioSrc = hasAudio
         ? `/audio/${currentRound.audioFilename}`
         : undefined;
 
@@ -100,7 +120,7 @@ export default function PlayPage() {
                     <Tag color="blue">Score: {player.score}</Tag>
                 </div>
 
-                {audioSrc && (
+                {audioSrc && !audioError && (
                     <Card size="small">
                         <Text strong>
                             Listen and place this song on your timeline:
@@ -110,8 +130,27 @@ export default function PlayPage() {
                             controls
                             src={audioSrc}
                             style={{ width: "100%", marginTop: 8 }}
+                            onError={() => setAudioError(true)}
                         />
                     </Card>
+                )}
+
+                {(!hasAudio || audioError) && (
+                    <Alert
+                        type="warning"
+                        message="Song audio is unavailable"
+                        description="The audio file for this song is missing. You can skip to the next song."
+                        showIcon
+                        action={
+                            <Button
+                                size="small"
+                                onClick={handleSkip}
+                                aria-label="Skip Song"
+                            >
+                                Skip Song
+                            </Button>
+                        }
+                    />
                 )}
 
                 {placementResult && (

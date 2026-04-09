@@ -132,4 +132,143 @@ describe("PlayPage", () => {
             expect(screen.getByText("Results Page")).toBeInTheDocument();
         });
     });
+
+    it("shows warning and skip button when audio file is missing", async () => {
+        server.use(
+            http.get("/api/game/sessions/:code/state", ({ request }) => {
+                const url = new URL(request.url);
+                const playerName = url.searchParams.get("playerName");
+                return HttpResponse.json({
+                    status: "playing",
+                    currentRound: {
+                        songId: "song1",
+                        audioFilename: "",
+                        startedAt: new Date().toISOString(),
+                    },
+                    player: {
+                        name: playerName,
+                        timeline: [],
+                        score: 0,
+                    },
+                    totalRounds: 2,
+                    currentRoundIndex: 0,
+                });
+            }),
+        );
+
+        renderPlayPage();
+
+        await waitFor(() => {
+            expect(
+                screen.getByText(/song audio is unavailable/i),
+            ).toBeInTheDocument();
+        });
+
+        expect(
+            screen.getByRole("button", { name: /skip song/i }),
+        ).toBeInTheDocument();
+
+        // Audio element should not be rendered
+        expect(document.querySelector("audio")).not.toBeInTheDocument();
+    });
+
+    it("skip button advances to next round", async () => {
+        const skipSpy = vi.spyOn(api, "skipSong");
+
+        server.use(
+            http.get("/api/game/sessions/:code/state", ({ request }) => {
+                const url = new URL(request.url);
+                const playerName = url.searchParams.get("playerName");
+                return HttpResponse.json({
+                    status: "playing",
+                    currentRound: {
+                        songId: "song1",
+                        audioFilename: "",
+                        startedAt: new Date().toISOString(),
+                    },
+                    player: {
+                        name: playerName,
+                        timeline: [],
+                        score: 0,
+                    },
+                    totalRounds: 2,
+                    currentRoundIndex: 0,
+                });
+            }),
+        );
+
+        renderPlayPage();
+        const user = userEvent.setup();
+
+        await waitFor(() => {
+            expect(
+                screen.getByText(/song audio is unavailable/i),
+            ).toBeInTheDocument();
+        });
+
+        await user.click(
+            screen.getByRole("button", { name: /skip song/i }),
+        );
+
+        await waitFor(() => {
+            expect(skipSpy).toHaveBeenCalledWith("ABC123", "Alice");
+        });
+    });
+
+    it("navigates to results when skip finishes the game", async () => {
+        server.use(
+            http.get("/api/game/sessions/:code/state", ({ request }) => {
+                const url = new URL(request.url);
+                const playerName = url.searchParams.get("playerName");
+                return HttpResponse.json({
+                    status: "playing",
+                    currentRound: {
+                        songId: "song1",
+                        audioFilename: "",
+                        startedAt: new Date().toISOString(),
+                    },
+                    player: {
+                        name: playerName,
+                        timeline: [],
+                        score: 0,
+                    },
+                    totalRounds: 1,
+                    currentRoundIndex: 0,
+                });
+            }),
+            http.post(
+                "/api/game/sessions/:code/skip",
+                async ({ request }) => {
+                    const body = (await request.json()) as {
+                        playerName: string;
+                    };
+                    return HttpResponse.json({
+                        status: "finished",
+                        player: {
+                            name: body.playerName,
+                            timeline: [],
+                            score: 0,
+                        },
+                    });
+                },
+            ),
+        );
+
+        renderPlayPage();
+        const user = userEvent.setup();
+
+        await waitFor(() => {
+            expect(
+                screen.getByText(/song audio is unavailable/i),
+            ).toBeInTheDocument();
+        });
+
+        await user.click(
+            screen.getByRole("button", { name: /skip song/i }),
+        );
+
+        await waitFor(() => {
+            expect(screen.getByText("Results Page")).toBeInTheDocument();
+        });
+    });
 });
