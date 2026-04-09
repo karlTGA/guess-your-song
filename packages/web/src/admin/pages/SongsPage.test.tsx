@@ -60,12 +60,14 @@ describe("SongsPage", () => {
         });
 
         const modal = screen.getByRole("dialog");
-        await user.type(within(modal).getByLabelText(/title/i), "New Song");
-        await user.type(within(modal).getByLabelText(/artist/i), "New Artist");
+        await user.click(within(modal).getByLabelText(/title/i));
+        await user.paste("New Song");
+        await user.click(within(modal).getByLabelText(/artist/i));
+        await user.paste("New Artist");
 
         const yearInput = within(modal).getByLabelText(/year/i);
         await user.clear(yearInput);
-        await user.paste("2020");
+        await user.type(yearInput, "2020");
 
         // Submit via OK button
         await user.click(within(modal).getByRole("button", { name: /ok/i }));
@@ -139,7 +141,7 @@ describe("SongsPage", () => {
 
         const yearInput = within(modal).getByLabelText(/year/i);
         await user.clear(yearInput);
-        await user.paste("2020");
+        await user.type(yearInput, "2020");
 
         // Attach a file
         const file = new File(["audio-data"], "song.mp3", {
