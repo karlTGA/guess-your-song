@@ -1,7 +1,7 @@
 import { TrophyOutlined } from "@ant-design/icons";
-import { Card, List, Space, Tag, Typography } from "antd";
+import { Button, Card, List, Space, Tag, Typography } from "antd";
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { getResults } from "../../api";
 
 const { Title, Text } = Typography;
@@ -21,6 +21,7 @@ interface PlayerResult {
 
 export default function ResultsPage() {
     const { code } = useParams<{ code: string }>();
+    const navigate = useNavigate();
     const [players, setPlayers] = useState<PlayerResult[]>([]);
 
     useEffect(() => {
@@ -69,6 +70,15 @@ export default function ResultsPage() {
                         />
                     </Card>
                 ))}
+
+                <Button
+                    type="primary"
+                    block
+                    size="large"
+                    onClick={() => navigate("/")}
+                >
+                    New Game
+                </Button>
             </Space>
         </div>
     );

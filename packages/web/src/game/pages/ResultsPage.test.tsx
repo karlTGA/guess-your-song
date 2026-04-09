@@ -45,4 +45,16 @@ describe("ResultsPage", () => {
         );
         expect(screen.getAllByText(/Billie Jean/).length).toBeGreaterThan(0);
     });
+
+    it("shows a new game button", async () => {
+        renderResultsPage();
+
+        await waitFor(() => {
+            expect(screen.getByText(/Alice/)).toBeInTheDocument();
+        });
+
+        expect(
+            screen.getByRole("button", { name: /new game/i }),
+        ).toBeInTheDocument();
+    });
 });
