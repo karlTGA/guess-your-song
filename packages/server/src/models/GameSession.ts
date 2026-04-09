@@ -14,6 +14,7 @@ export interface IGameSession extends Document {
         timeline: { songId: mongoose.Types.ObjectId; position: number }[];
         score: number;
     }[];
+    songOrder: mongoose.Types.ObjectId[];
     rounds: {
         songId: mongoose.Types.ObjectId;
         startedAt?: Date;
@@ -54,6 +55,7 @@ const gameSessionSchema = new Schema<IGameSession>(
                 score: { type: Number, default: 0 },
             },
         ],
+        songOrder: [{ type: Schema.Types.ObjectId, ref: "Song" }],
         rounds: [
             {
                 songId: {

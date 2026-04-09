@@ -335,4 +335,33 @@ describe("game placement and round flow", () => {
 
         expect(response.statusCode).toBe(400);
     });
+
+    it("each round serves the song from songOrder, not playlist order", async () => {
+        // Get the session to read its songOrder
+        const sessionRes = await app.inject({
+            method: "GET",
+            url: `/api/game/sessions/${sessionCode}`,
+        });
+        const songOrder = sessionRes.json().songOrder;
+        expect(songOrder).toHaveLength(3);
+
+        // Play through all rounds, collecting each round's songId
+        const servedSongIds: string[] = [];
+        for (let i = 0; i < 3; i++) {
+            const stateRes = await app.inject({
+                method: "GET",
+                url: `/api/game/sessions/${sessionCode}/state?playerName=Alice`,
+            });
+            servedSongIds.push(stateRes.json().currentRound.songId);
+
+            await app.inject({
+                method: "POST",
+                url: `/api/game/sessions/${sessionCode}/skip`,
+                payload: { playerName: "Alice" },
+            });
+        }
+
+        // The served songs should follow the songOrder exactly
+        expect(servedSongIds).toEqual(songOrder);
+    });
 });

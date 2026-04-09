@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validatePlacement } from "./gameService";
+import { shuffleArray, validatePlacement } from "./gameService";
 
 describe("validatePlacement — timeline placement logic", () => {
     // Timeline entries are stored as { songId, year } sorted by the player's placement order
@@ -122,5 +122,31 @@ describe("validatePlacement — timeline placement logic", () => {
         });
 
         expect(result.correct).toBe(true);
+    });
+});
+
+describe("shuffleArray — Fisher-Yates shuffle", () => {
+    it("returns an array with the same elements and length", () => {
+        const input = ["a", "b", "c", "d", "e"];
+        const result = shuffleArray(input);
+
+        expect(result).toHaveLength(input.length);
+        expect(result.sort()).toEqual([...input].sort());
+    });
+
+    it("does not mutate the original array", () => {
+        const input = ["a", "b", "c"];
+        const copy = [...input];
+        shuffleArray(input);
+
+        expect(input).toEqual(copy);
+    });
+
+    it("works with an empty array", () => {
+        expect(shuffleArray([])).toEqual([]);
+    });
+
+    it("works with a single element", () => {
+        expect(shuffleArray(["x"])).toEqual(["x"]);
     });
 });

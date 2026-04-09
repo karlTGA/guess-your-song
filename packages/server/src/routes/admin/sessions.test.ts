@@ -131,6 +131,41 @@ describe("admin game sessions API", () => {
         expect(started.rounds[0].startedAt).toBeDefined();
     });
 
+    it("starting a game populates songOrder with all playlist songs in shuffled order", async () => {
+        const createRes = await app.inject({
+            method: "POST",
+            url: "/api/admin/sessions",
+            headers: { authorization: `Bearer ${token}` },
+            payload: { playlistId: playlist._id },
+        });
+        const session = createRes.json();
+
+        const response = await app.inject({
+            method: "POST",
+            url: `/api/admin/sessions/${session.code}/start`,
+            headers: { authorization: `Bearer ${token}` },
+        });
+
+        expect(response.statusCode).toBe(200);
+        const started = response.json();
+        expect(started.songOrder).toBeDefined();
+        expect(started.songOrder).toHaveLength(3);
+        // songOrder contains the same song IDs as the playlist (order may differ)
+        const playlistRes = await app.inject({
+            method: "GET",
+            url: `/api/admin/playlists/${playlist._id}`,
+            headers: { authorization: `Bearer ${token}` },
+        });
+        const playlistSongIds = playlistRes
+            .json()
+            .songs.map((s: { _id: string }) => s._id);
+        expect([...started.songOrder].sort()).toEqual(
+            [...playlistSongIds].sort(),
+        );
+        // First round's songId matches the first element of songOrder
+        expect(started.rounds[0].songId).toBe(started.songOrder[0]);
+    });
+
     it("admin can list active sessions with player count and playlist name", async () => {
         // Create a waiting session
         const waitingRes = await app.inject({

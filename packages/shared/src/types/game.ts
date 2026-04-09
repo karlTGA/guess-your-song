@@ -30,6 +30,7 @@ export interface GameSession {
     status: GameStatus;
     config: GameConfig;
     players: PlayerTimeline[];
+    songOrder: string[];
     rounds: GameRound[];
     currentRoundIndex: number;
     createdAt: string;

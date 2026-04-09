@@ -263,6 +263,49 @@ describe("public game creation", () => {
         expect(session.rounds).toHaveLength(1);
     });
 
+    it("public game creation populates songOrder with all playlist songs", async () => {
+        const songs = [];
+        for (const s of [
+            { title: "Song A", artist: "A", year: 1980 },
+            { title: "Song B", artist: "B", year: 1990 },
+            { title: "Song C", artist: "C", year: 2000 },
+        ]) {
+            const res = await app.inject({
+                method: "POST",
+                url: "/api/admin/songs",
+                headers: { authorization: `Bearer ${token}` },
+                payload: s,
+            });
+            songs.push(res.json());
+        }
+
+        const playlistRes = await app.inject({
+            method: "POST",
+            url: "/api/admin/playlists",
+            headers: { authorization: `Bearer ${token}` },
+            payload: {
+                name: "Game Playlist 2",
+                songs: songs.map((s) => s._id),
+            },
+        });
+        const playlistId = playlistRes.json()._id;
+
+        const response = await app.inject({
+            method: "POST",
+            url: "/api/game/sessions",
+            payload: { playlistId, playerName: "Bob" },
+        });
+
+        expect(response.statusCode).toBe(201);
+        const session = response.json();
+        expect(session.songOrder).toBeDefined();
+        expect(session.songOrder).toHaveLength(3);
+        const songIds = songs.map((s) => s._id);
+        expect([...session.songOrder].sort()).toEqual([...songIds].sort());
+        // First round uses first element of songOrder
+        expect(session.rounds[0].songId).toBe(session.songOrder[0]);
+    });
+
     it("cannot create a game with non-existent playlist", async () => {
         const response = await app.inject({
             method: "POST",

@@ -4,6 +4,7 @@ import type { FastifyInstance } from "fastify";
 import { GameSessionModel } from "../../models/GameSession";
 import { PlaylistModel } from "../../models/Playlist";
 import { authenticate } from "../../plugins/auth";
+import { shuffleArray } from "../../services/gameService";
 
 function generateCode(): string {
     return crypto.randomBytes(3).toString("hex").toUpperCase();
@@ -93,11 +94,14 @@ export async function sessionRoutes(app: FastifyInstance) {
             return reply.status(400).send({ error: "Playlist has no songs" });
         }
 
+        const songOrder = shuffleArray([...playlist.songs]);
+
         session.status = "playing";
         session.currentRoundIndex = 0;
+        session.songOrder = songOrder;
         session.rounds = [
             {
-                songId: playlist.songs[0],
+                songId: songOrder[0],
                 startedAt: new Date(),
             },
         ];

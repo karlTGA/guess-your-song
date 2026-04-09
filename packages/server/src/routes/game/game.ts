@@ -4,7 +4,7 @@ import type { FastifyInstance } from "fastify";
 import { GameSessionModel } from "../../models/GameSession";
 import { PlaylistModel } from "../../models/Playlist";
 import { SongModel } from "../../models/Song";
-import { validatePlacement } from "../../services/gameService";
+import { shuffleArray, validatePlacement } from "../../services/gameService";
 
 function generateCode(): string {
     return crypto.randomBytes(3).toString("hex").toUpperCase();
@@ -47,6 +47,7 @@ export async function gameRoutes(app: FastifyInstance) {
         }
 
         const code = await generateUniqueCode();
+        const songOrder = shuffleArray([...playlist.songs]);
 
         const session = await GameSessionModel.create({
             code,
@@ -54,6 +55,7 @@ export async function gameRoutes(app: FastifyInstance) {
             config: { ...DEFAULT_GAME_CONFIG },
             status: "playing",
             currentRoundIndex: 0,
+            songOrder,
             players: [
                 {
                     name: playerName,
@@ -64,7 +66,7 @@ export async function gameRoutes(app: FastifyInstance) {
             ],
             rounds: [
                 {
-                    songId: playlist.songs[0],
+                    songId: songOrder[0],
                     startedAt: new Date(),
                 },
             ],
@@ -127,8 +129,7 @@ export async function gameRoutes(app: FastifyInstance) {
             return reply.status(404).send({ error: "Player not found" });
         }
 
-        const playlist = await PlaylistModel.findById(session.playlist);
-        const totalRounds = playlist?.songs.length ?? 0;
+        const totalRounds = session.songOrder.length;
 
         const currentRound =
             session.rounds.length > 0
@@ -237,17 +238,13 @@ export async function gameRoutes(app: FastifyInstance) {
         // Advance to next round
         currentRound.endedAt = new Date();
 
-        const playlist = await PlaylistModel.findById(session.playlist);
-        if (!playlist) {
-            return reply.status(500).send({ error: "Playlist not found" });
-        }
-        const totalSongs = playlist.songs.length;
+        const totalSongs = session.songOrder.length;
         const nextRoundIndex = session.currentRoundIndex + 1;
 
         if (nextRoundIndex < totalSongs) {
             session.currentRoundIndex = nextRoundIndex;
             session.rounds.push({
-                songId: playlist.songs[nextRoundIndex],
+                songId: session.songOrder[nextRoundIndex],
                 startedAt: new Date(),
             });
         } else {
@@ -312,17 +309,13 @@ export async function gameRoutes(app: FastifyInstance) {
         // Advance to next round without scoring
         currentRound.endedAt = new Date();
 
-        const playlist = await PlaylistModel.findById(session.playlist);
-        if (!playlist) {
-            return reply.status(500).send({ error: "Playlist not found" });
-        }
-        const totalSongs = playlist.songs.length;
+        const totalSongs = session.songOrder.length;
         const nextRoundIndex = session.currentRoundIndex + 1;
 
         if (nextRoundIndex < totalSongs) {
             session.currentRoundIndex = nextRoundIndex;
             session.rounds.push({
-                songId: playlist.songs[nextRoundIndex],
+                songId: session.songOrder[nextRoundIndex],
                 startedAt: new Date(),
             });
         } else {
