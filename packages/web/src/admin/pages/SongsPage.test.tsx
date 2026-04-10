@@ -44,8 +44,7 @@ describe("SongsPage", () => {
         expect(screen.getAllByText("Billie Jean").length).toBeGreaterThan(0);
     });
 
-    it("admin can open add song modal and submit", async () => {
-        const createSpy = vi.spyOn(api, "createSong");
+    it("admin can open add song modal", async () => {
         const user = userEvent.setup();
         renderSongsPage();
 
@@ -60,32 +59,13 @@ describe("SongsPage", () => {
             screen.getAllByRole("button", { name: /add song/i })[0],
         );
 
-        // Modal should appear
+        // Modal should appear with drop zone
         await waitFor(() => {
             expect(screen.getByRole("dialog")).toBeInTheDocument();
         });
 
         const modal = screen.getByRole("dialog");
-        await user.click(within(modal).getByLabelText(/title/i));
-        await user.paste("New Song");
-        await user.click(within(modal).getByLabelText(/artist/i));
-        await user.paste("New Artist");
-
-        const yearInput = within(modal).getByLabelText(/year/i);
-        await user.clear(yearInput);
-        await user.type(yearInput, "2020");
-
-        // Submit via OK button
-        await user.click(within(modal).getByRole("button", { name: /ok/i }));
-
-        // Verify the API was called with correct data
-        await waitFor(() => {
-            expect(createSpy).toHaveBeenCalledWith({
-                title: "New Song",
-                artist: "New Artist",
-                year: 2020,
-            });
-        });
+        expect(within(modal).getByTestId("drop-zone")).toBeInTheDocument();
     });
 
     it("admin can delete a song", async () => {
@@ -116,58 +96,6 @@ describe("SongsPage", () => {
         // Verify the API was called
         await waitFor(() => {
             expect(deleteSpy).toHaveBeenCalledWith("song1");
-        });
-    });
-
-    it("submitting add song modal with file calls uploadSongAudio", async () => {
-        const uploadSpy = vi.spyOn(api, "uploadSongAudio");
-        const user = userEvent.setup();
-        renderSongsPage();
-
-        await waitFor(() => {
-            expect(
-                screen.getAllByText("Bohemian Rhapsody").length,
-            ).toBeGreaterThan(0);
-        });
-
-        await user.click(
-            screen.getAllByRole("button", { name: /add song/i })[0],
-        );
-
-        await waitFor(() => {
-            expect(screen.getByRole("dialog")).toBeInTheDocument();
-        });
-
-        const modal = screen.getByRole("dialog");
-        await user.type(within(modal).getByLabelText(/title/i), "Upload Song");
-        await user.type(
-            within(modal).getByLabelText(/artist/i),
-            "Upload Artist",
-        );
-
-        const yearInput = within(modal).getByLabelText(/year/i);
-        await user.clear(yearInput);
-        await user.type(yearInput, "2020");
-
-        // Attach a file
-        const file = new File(["audio-data"], "song.mp3", {
-            type: "audio/mpeg",
-        });
-        const fileInput = within(modal).getByLabelText(
-            /audio file/i,
-        ) as HTMLInputElement;
-        await user.upload(fileInput, file);
-
-        // Submit
-        await user.click(within(modal).getByRole("button", { name: /ok/i }));
-
-        await waitFor(() => {
-            expect(uploadSpy).toHaveBeenCalledWith({
-                title: "Upload Song",
-                artist: "Upload Artist",
-                year: 2020,
-                file: expect.any(File),
-            });
         });
     });
 
@@ -228,26 +156,45 @@ function createDropEvent(files: File[]) {
     };
 }
 
-describe("SongsPage batch upload", () => {
+async function openAddSongModal() {
+    const user = userEvent.setup();
+    renderSongsPage();
+
+    await waitFor(() => {
+        expect(screen.getAllByText("Bohemian Rhapsody").length).toBeGreaterThan(
+            0,
+        );
+    });
+
+    await user.click(screen.getAllByRole("button", { name: /add song/i })[0]);
+
+    await waitFor(() => {
+        expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
+    return { user, modal: screen.getByRole("dialog") };
+}
+
+describe("SongsPage batch upload modal", () => {
     beforeEach(() => {
         localStorage.clear();
     });
 
-    it("dropping audio files shows a batch review table", async () => {
+    it("clicking Add Song opens a modal with a drop zone", async () => {
+        const { modal } = await openAddSongModal();
+
+        expect(within(modal).getByTestId("drop-zone")).toBeInTheDocument();
+    });
+
+    it("dropping audio files in the modal shows batch review entries", async () => {
         const extractSpy = vi.spyOn(api, "extractMetadata").mockResolvedValue({
             title: "Mock Title",
             artist: "Mock Artist",
             year: 2020,
         });
-        renderSongsPage();
+        const { modal } = await openAddSongModal();
 
-        await waitFor(() => {
-            expect(
-                screen.getAllByText("Bohemian Rhapsody").length,
-            ).toBeGreaterThan(0);
-        });
-
-        const dropZone = screen.getByTestId("drop-zone");
+        const dropZone = within(modal).getByTestId("drop-zone");
         const files = [
             new File(["audio1"], "song1.mp3", { type: "audio/mpeg" }),
             new File(["audio2"], "song2.mp3", { type: "audio/mpeg" }),
@@ -259,27 +206,19 @@ describe("SongsPage batch upload", () => {
             expect(extractSpy).toHaveBeenCalledTimes(2);
         });
 
-        // Review table should show with rows for each file
-        expect(screen.getByText("Batch Upload")).toBeInTheDocument();
-        const reviewRows = screen.getAllByTestId("batch-row");
+        const reviewRows = within(modal).getAllByTestId("batch-row");
         expect(reviewRows).toHaveLength(2);
     });
 
-    it("extracted metadata populates editable fields in review table", async () => {
+    it("extracted metadata populates editable fields", async () => {
         vi.spyOn(api, "extractMetadata").mockResolvedValueOnce({
             title: "Extracted Title",
             artist: "Extracted Artist",
             year: 2019,
         });
-        renderSongsPage();
+        const { modal } = await openAddSongModal();
 
-        await waitFor(() => {
-            expect(
-                screen.getAllByText("Bohemian Rhapsody").length,
-            ).toBeGreaterThan(0);
-        });
-
-        const dropZone = screen.getByTestId("drop-zone");
+        const dropZone = within(modal).getByTestId("drop-zone");
         const files = [
             new File(["audio1"], "song1.mp3", { type: "audio/mpeg" }),
         ];
@@ -287,10 +226,10 @@ describe("SongsPage batch upload", () => {
         fireEvent.drop(dropZone, createDropEvent(files));
 
         await waitFor(() => {
-            expect(screen.getByText("Batch Upload")).toBeInTheDocument();
+            expect(within(modal).getAllByTestId("batch-row")).toHaveLength(1);
         });
 
-        const row = screen.getByTestId("batch-row");
+        const row = within(modal).getByTestId("batch-row");
         const titleInput = within(row).getByLabelText(
             /title/i,
         ) as HTMLInputElement;
@@ -306,17 +245,11 @@ describe("SongsPage batch upload", () => {
         expect(yearInput.value).toBe("2019");
     });
 
-    it("highlights missing required fields", async () => {
+    it("highlights missing required fields on confirm", async () => {
         vi.spyOn(api, "extractMetadata").mockResolvedValueOnce({});
-        renderSongsPage();
+        const { user, modal } = await openAddSongModal();
 
-        await waitFor(() => {
-            expect(
-                screen.getAllByText("Bohemian Rhapsody").length,
-            ).toBeGreaterThan(0);
-        });
-
-        const dropZone = screen.getByTestId("drop-zone");
+        const dropZone = within(modal).getByTestId("drop-zone");
         const files = [
             new File(["audio1"], "untagged.mp3", { type: "audio/mpeg" }),
         ];
@@ -324,18 +257,17 @@ describe("SongsPage batch upload", () => {
         fireEvent.drop(dropZone, createDropEvent(files));
 
         await waitFor(() => {
-            expect(screen.getByText("Batch Upload")).toBeInTheDocument();
+            expect(within(modal).getAllByTestId("batch-row")).toHaveLength(1);
         });
 
-        // Click confirm without filling fields
-        const user = userEvent.setup();
         await user.click(
-            screen.getByRole("button", { name: /confirm upload/i }),
+            within(modal).getByRole("button", { name: /confirm upload/i }),
         );
 
-        // Should show validation errors for the empty required fields
         await waitFor(() => {
-            expect(screen.getByText(/title is required/i)).toBeInTheDocument();
+            expect(
+                within(modal).getByText(/title is required/i),
+            ).toBeInTheDocument();
         });
     });
 
@@ -352,15 +284,9 @@ describe("SongsPage batch upload", () => {
             artist: "Mock Artist",
             year: 2020,
         });
-        renderSongsPage();
+        const { user, modal } = await openAddSongModal();
 
-        await waitFor(() => {
-            expect(
-                screen.getAllByText("Bohemian Rhapsody").length,
-            ).toBeGreaterThan(0);
-        });
-
-        const dropZone = screen.getByTestId("drop-zone");
+        const dropZone = within(modal).getByTestId("drop-zone");
         const file = new File(["audio1"], "song1.mp3", {
             type: "audio/mpeg",
         });
@@ -368,17 +294,16 @@ describe("SongsPage batch upload", () => {
         fireEvent.drop(dropZone, createDropEvent([file]));
 
         await waitFor(() => {
-            expect(screen.getByText("Batch Upload")).toBeInTheDocument();
+            expect(within(modal).getAllByTestId("batch-row")).toHaveLength(1);
         });
 
-        const user = userEvent.setup();
-        const row = screen.getByTestId("batch-row");
+        const row = within(modal).getByTestId("batch-row");
         const titleInput = within(row).getByLabelText(/title/i);
         await user.clear(titleInput);
         await user.type(titleInput, "Edited Title");
 
         await user.click(
-            screen.getByRole("button", { name: /confirm upload/i }),
+            within(modal).getByRole("button", { name: /confirm upload/i }),
         );
 
         await waitFor(() => {
@@ -410,15 +335,9 @@ describe("SongsPage batch upload", () => {
                 artist: "Artist B",
                 year: 2021,
             });
-        renderSongsPage();
+        const { user, modal } = await openAddSongModal();
 
-        await waitFor(() => {
-            expect(
-                screen.getAllByText("Bohemian Rhapsody").length,
-            ).toBeGreaterThan(0);
-        });
-
-        const dropZone = screen.getByTestId("drop-zone");
+        const dropZone = within(modal).getByTestId("drop-zone");
         const files = [
             new File(["audio1"], "songA.mp3", { type: "audio/mpeg" }),
             new File(["audio2"], "songB.mp3", { type: "audio/mpeg" }),
@@ -427,23 +346,20 @@ describe("SongsPage batch upload", () => {
         fireEvent.drop(dropZone, createDropEvent(files));
 
         await waitFor(() => {
-            const rows = screen.getAllByTestId("batch-row");
+            const rows = within(modal).getAllByTestId("batch-row");
             expect(rows).toHaveLength(2);
         });
 
-        // Remove first file
-        const user = userEvent.setup();
-        const removeButtons = screen.getAllByRole("button", {
+        const removeButtons = within(modal).getAllByRole("button", {
             name: /remove/i,
         });
         await user.click(removeButtons[0]);
 
-        const rows = screen.getAllByTestId("batch-row");
+        const rows = within(modal).getAllByTestId("batch-row");
         expect(rows).toHaveLength(1);
 
-        // Confirm — only the remaining song should be uploaded
         await user.click(
-            screen.getByRole("button", { name: /confirm upload/i }),
+            within(modal).getByRole("button", { name: /confirm upload/i }),
         );
 
         await waitFor(() => {
@@ -455,5 +371,239 @@ describe("SongsPage batch upload", () => {
                 file: expect.any(File),
             });
         });
+    });
+
+    it("user can select an existing playlist to add songs to", async () => {
+        const uploadSpy = vi.spyOn(api, "uploadSongAudio").mockResolvedValue({
+            _id: "new-song-1",
+            title: "Song A",
+            artist: "Artist A",
+            year: 2020,
+            audioFilename: "abc.mp3",
+        });
+        const updatePlaylistSpy = vi.spyOn(api, "updatePlaylist");
+        vi.spyOn(api, "extractMetadata").mockResolvedValueOnce({
+            title: "Song A",
+            artist: "Artist A",
+            year: 2020,
+        });
+        const { user, modal } = await openAddSongModal();
+
+        const dropZone = within(modal).getByTestId("drop-zone");
+        fireEvent.drop(
+            dropZone,
+            createDropEvent([
+                new File(["audio1"], "songA.mp3", { type: "audio/mpeg" }),
+            ]),
+        );
+
+        await waitFor(() => {
+            expect(within(modal).getAllByTestId("batch-row")).toHaveLength(1);
+        });
+
+        // Select existing playlist radio
+        await user.click(
+            within(modal).getByRole("radio", { name: /existing playlist/i }),
+        );
+
+        const playlistSelect = within(modal).getByRole("combobox", {
+            name: /playlist/i,
+        });
+        await user.click(playlistSelect);
+        await waitFor(() => {
+            expect(screen.getByText("Classic Hits")).toBeInTheDocument();
+        });
+        await user.click(screen.getByText("Classic Hits"));
+
+        await user.click(
+            within(modal).getByRole("button", { name: /confirm upload/i }),
+        );
+
+        await waitFor(() => {
+            expect(uploadSpy).toHaveBeenCalledTimes(1);
+        });
+
+        await waitFor(() => {
+            expect(updatePlaylistSpy).toHaveBeenCalledWith("pl1", {
+                songs: ["song1", "song2", "new-song-1"],
+            });
+        });
+    });
+
+    it("user can create a new playlist for batch songs", async () => {
+        const uploadSpy = vi.spyOn(api, "uploadSongAudio").mockResolvedValue({
+            _id: "new-song-1",
+            title: "Song A",
+            artist: "Artist A",
+            year: 2020,
+            audioFilename: "abc.mp3",
+        });
+        const createPlaylistSpy = vi.spyOn(api, "createPlaylist");
+        vi.spyOn(api, "extractMetadata").mockResolvedValueOnce({
+            title: "Song A",
+            artist: "Artist A",
+            year: 2020,
+        });
+        const { user, modal } = await openAddSongModal();
+
+        const dropZone = within(modal).getByTestId("drop-zone");
+        fireEvent.drop(
+            dropZone,
+            createDropEvent([
+                new File(["audio1"], "songA.mp3", { type: "audio/mpeg" }),
+            ]),
+        );
+
+        await waitFor(() => {
+            expect(within(modal).getAllByTestId("batch-row")).toHaveLength(1);
+        });
+
+        // Toggle to create new playlist
+        await user.click(
+            within(modal).getByRole("radio", { name: /new playlist/i }),
+        );
+        const nameInput = within(modal).getByLabelText(/playlist name/i);
+        await user.type(nameInput, "My New Playlist");
+
+        await user.click(
+            within(modal).getByRole("button", { name: /confirm upload/i }),
+        );
+
+        await waitFor(() => {
+            expect(uploadSpy).toHaveBeenCalledTimes(1);
+        });
+
+        await waitFor(() => {
+            expect(createPlaylistSpy).toHaveBeenCalledWith({
+                name: "My New Playlist",
+                songs: ["new-song-1"],
+            });
+        });
+    });
+});
+
+describe("SongsPage inline editing", () => {
+    beforeEach(() => {
+        localStorage.clear();
+    });
+
+    it("clicking a song title makes it editable", async () => {
+        const user = userEvent.setup();
+        renderSongsPage();
+
+        await waitFor(() => {
+            expect(
+                screen.getAllByText("Bohemian Rhapsody").length,
+            ).toBeGreaterThan(0);
+        });
+
+        // Click on the title text to edit it
+        await user.click(screen.getAllByText("Bohemian Rhapsody")[0]);
+
+        // An input should appear with the current title
+        const input = screen.getByDisplayValue("Bohemian Rhapsody");
+        expect(input).toBeInTheDocument();
+        expect(input.tagName).toBe("INPUT");
+    });
+
+    it("editing a title and pressing Enter calls updateSong API", async () => {
+        const updateSpy = vi.spyOn(api, "updateSong");
+        const user = userEvent.setup();
+        renderSongsPage();
+
+        await waitFor(() => {
+            expect(
+                screen.getAllByText("Bohemian Rhapsody").length,
+            ).toBeGreaterThan(0);
+        });
+
+        // Click on the title to edit
+        await user.click(screen.getAllByText("Bohemian Rhapsody")[0]);
+        const input = screen.getByDisplayValue("Bohemian Rhapsody");
+
+        // Clear and type new title
+        await user.clear(input);
+        await user.type(input, "New Title{Enter}");
+
+        await waitFor(() => {
+            expect(updateSpy).toHaveBeenCalledWith("song1", {
+                title: "New Title",
+            });
+        });
+    });
+
+    it("editing an artist and pressing Enter calls updateSong API", async () => {
+        const updateSpy = vi.spyOn(api, "updateSong");
+        const user = userEvent.setup();
+        renderSongsPage();
+
+        await waitFor(() => {
+            expect(screen.getAllByText("Queen").length).toBeGreaterThan(0);
+        });
+
+        await user.click(screen.getAllByText("Queen")[0]);
+        const input = screen.getByDisplayValue("Queen");
+
+        await user.clear(input);
+        await user.type(input, "King{Enter}");
+
+        await waitFor(() => {
+            expect(updateSpy).toHaveBeenCalledWith("song1", {
+                artist: "King",
+            });
+        });
+    });
+
+    it("editing a year and pressing Enter calls updateSong API", async () => {
+        const updateSpy = vi.spyOn(api, "updateSong");
+        const user = userEvent.setup();
+        renderSongsPage();
+
+        await waitFor(() => {
+            expect(screen.getAllByText("1975").length).toBeGreaterThan(0);
+        });
+
+        await user.click(screen.getAllByText("1975")[0]);
+        const input = screen.getByDisplayValue("1975");
+        expect(input).toBeInTheDocument();
+
+        await user.clear(input);
+        await user.type(input, "2000{Enter}");
+
+        await waitFor(() => {
+            expect(updateSpy).toHaveBeenCalledWith("song1", {
+                year: 2000,
+            });
+        });
+    });
+
+    it("pressing Escape cancels editing without calling API", async () => {
+        const updateSpy = vi.spyOn(api, "updateSong");
+        const user = userEvent.setup();
+        renderSongsPage();
+
+        await waitFor(() => {
+            expect(
+                screen.getAllByText("Bohemian Rhapsody").length,
+            ).toBeGreaterThan(0);
+        });
+
+        await user.click(screen.getAllByText("Bohemian Rhapsody")[0]);
+        const input = screen.getByDisplayValue("Bohemian Rhapsody");
+
+        await user.clear(input);
+        await user.type(input, "Something Else");
+        await user.keyboard("{Escape}");
+
+        // Input should disappear, original value shown
+        await waitFor(() => {
+            expect(
+                screen.queryByDisplayValue("Something Else"),
+            ).not.toBeInTheDocument();
+        });
+        expect(screen.getAllByText("Bohemian Rhapsody").length).toBeGreaterThan(
+            0,
+        );
+        expect(updateSpy).not.toHaveBeenCalled();
     });
 });

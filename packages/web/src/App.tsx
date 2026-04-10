@@ -13,6 +13,7 @@ import {
     Routes,
 } from "react-router-dom";
 import LoginPage from "./admin/pages/LoginPage";
+import PlaylistSongsPage from "./admin/pages/PlaylistSongsPage";
 import PlaylistsPage from "./admin/pages/PlaylistsPage";
 import SessionsPage from "./admin/pages/SessionsPage";
 import SongsPage from "./admin/pages/SongsPage";
@@ -107,6 +108,10 @@ function App() {
                             <Route
                                 path="playlists"
                                 element={<PlaylistsPage />}
+                            />
+                            <Route
+                                path="playlists/:playlistId/songs"
+                                element={<PlaylistSongsPage />}
                             />
                             <Route path="sessions" element={<SessionsPage />} />
                         </Route>

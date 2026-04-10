@@ -12,12 +12,12 @@ import {
     Typography,
 } from "antd";
 import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
     createPlaylist,
     deletePlaylist,
     getPlaylists,
     getSongs,
-    updatePlaylist,
 } from "../../api";
 
 const { Title } = Typography;
@@ -41,10 +41,8 @@ export default function PlaylistsPage() {
     const [songs, setSongs] = useState<Song[]>([]);
     const [loading, setLoading] = useState(false);
     const [modalOpen, setModalOpen] = useState(false);
-    const [manageSongsPlaylist, setManageSongsPlaylist] =
-        useState<Playlist | null>(null);
     const [form] = Form.useForm();
-    const [manageSongsForm] = Form.useForm();
+    const navigate = useNavigate();
 
     const loadPlaylists = useCallback(async () => {
         setLoading(true);
@@ -99,23 +97,7 @@ export default function PlaylistsPage() {
     };
 
     const openManageSongs = (playlist: Playlist) => {
-        setManageSongsPlaylist(playlist);
-        manageSongsForm.setFieldsValue({ songs: playlist.songs });
-    };
-
-    const handleManageSongs = async (values: { songs: string[] }) => {
-        if (!manageSongsPlaylist) return;
-        try {
-            await updatePlaylist(manageSongsPlaylist._id, {
-                songs: values.songs,
-            });
-            message.success("Playlist songs updated");
-            setManageSongsPlaylist(null);
-            manageSongsForm.resetFields();
-            loadPlaylists();
-        } catch {
-            message.error("Failed to update playlist songs");
-        }
+        navigate(`/admin/playlists/${playlist._id}/songs`);
     };
 
     const columns = [
@@ -206,33 +188,6 @@ export default function PlaylistsPage() {
                     <Form.Item label="Description" name="description">
                         <Input />
                     </Form.Item>
-                    <Form.Item label="Songs" name="songs">
-                        <Select
-                            mode="multiple"
-                            placeholder="Select songs"
-                            options={songs.map((s) => ({
-                                label: `${s.title} - ${s.artist} (${s.year})`,
-                                value: s._id,
-                            }))}
-                        />
-                    </Form.Item>
-                </Form>
-            </Modal>
-
-            <Modal
-                title="Manage Songs"
-                open={!!manageSongsPlaylist}
-                onOk={() => manageSongsForm.submit()}
-                onCancel={() => {
-                    setManageSongsPlaylist(null);
-                    manageSongsForm.resetFields();
-                }}
-            >
-                <Form
-                    form={manageSongsForm}
-                    layout="vertical"
-                    onFinish={handleManageSongs}
-                >
                     <Form.Item label="Songs" name="songs">
                         <Select
                             mode="multiple"

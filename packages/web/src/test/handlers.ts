@@ -105,7 +105,8 @@ export const handlers = [
 
     http.put("/api/admin/songs/:id", async ({ request, params }) => {
         const body = (await request.json()) as Record<string, unknown>;
-        return HttpResponse.json({ _id: params.id, ...body });
+        const existing = songs.find((s) => s._id === params.id);
+        return HttpResponse.json({ ...existing, ...body, _id: params.id });
     }),
 
     http.delete("/api/admin/songs/:id", () => {
