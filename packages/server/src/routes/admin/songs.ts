@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { parseBuffer } from "music-metadata";
+import { PlaylistModel } from "../../models/Playlist";
 import { SongModel } from "../../models/Song";
 import { authenticate } from "../../plugins/auth";
 
@@ -52,6 +53,10 @@ export async function songRoutes(app: FastifyInstance) {
         if (song.audioFilename) {
             await app.storageService.delete(song.audioFilename);
         }
+        await PlaylistModel.updateMany(
+            { songs: id },
+            { $pull: { songs: id } },
+        );
         return reply.status(204).send();
     });
 

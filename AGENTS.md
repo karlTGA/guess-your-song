@@ -30,6 +30,8 @@ Player get one random song after another and should place the song on the correc
 
 ## Conventions
 
+- Use always the /tdd skill
+- Fix all lint, type or test issues
 - All packages use ESM (`"type": "module"`)
 - Shared types live in `packages/shared/src/types/`
 - Server tests use in-memory MongoDB (`mongodb-memory-server`)

@@ -335,6 +335,53 @@ describe("admin songs API", () => {
 
         expect(response.statusCode).toBe(404);
     });
+
+    it("deleting a song removes it from playlists", async () => {
+        const song1 = await app.inject({
+            method: "POST",
+            url: "/api/admin/songs",
+            headers: { authorization: `Bearer ${token}` },
+            payload: { title: "Song 1", artist: "Artist 1", year: 1980 },
+        });
+        const song2 = await app.inject({
+            method: "POST",
+            url: "/api/admin/songs",
+            headers: { authorization: `Bearer ${token}` },
+            payload: { title: "Song 2", artist: "Artist 2", year: 1990 },
+        });
+
+        const playlistRes = await app.inject({
+            method: "POST",
+            url: "/api/admin/playlists",
+            headers: { authorization: `Bearer ${token}` },
+            payload: {
+                name: "Mixed",
+                songs: [song1.json()._id, song2.json()._id],
+            },
+        });
+        const playlist = playlistRes.json();
+        expect(playlist.songs).toHaveLength(2);
+
+        // Delete song1
+        await app.inject({
+            method: "DELETE",
+            url: `/api/admin/songs/${song1.json()._id}`,
+            headers: { authorization: `Bearer ${token}` },
+        });
+
+        // Playlist should only contain song2 (check unpopulated to catch dangling refs)
+        const listRes = await app.inject({
+            method: "GET",
+            url: "/api/admin/playlists",
+            headers: { authorization: `Bearer ${token}` },
+        });
+        const playlists = listRes.json();
+        const updated = playlists.find(
+            (p: { _id: string }) => p._id === playlist._id,
+        );
+        expect(updated.songs).toHaveLength(1);
+        expect(updated.songs[0]).toBe(song2.json()._id);
+    });
 });
 
 /**

@@ -99,7 +99,7 @@ describe("SongsPage", () => {
         });
     });
 
-    it("shows audio status for each song", async () => {
+    it("shows audio player for songs with audio", async () => {
         renderSongsPage();
 
         await waitFor(() => {
@@ -108,9 +108,32 @@ describe("SongsPage", () => {
             ).toBeGreaterThan(0);
         });
 
-        // Both mock songs have audioFilename, so should show "Has audio"
-        const audioIndicators = screen.getAllByText("Has audio");
-        expect(audioIndicators.length).toBe(2);
+        // Both mock songs have audioFilename, so should show audio players
+        const audioElements = document.querySelectorAll("audio");
+        expect(audioElements).toHaveLength(2);
+        expect(audioElements[0].getAttribute("src")).toBe("/audio/abc.mp3");
+        expect(audioElements[1].getAttribute("src")).toBe("/audio/def.mp3");
+    });
+
+    it("shows 'No audio' tag for songs without audio", async () => {
+        vi.spyOn(api, "getSongs").mockResolvedValue([
+            {
+                _id: "song1",
+                title: "Bohemian Rhapsody",
+                artist: "Queen",
+                year: 1975,
+            },
+        ]);
+        renderSongsPage();
+
+        await waitFor(() => {
+            expect(
+                screen.getAllByText("Bohemian Rhapsody").length,
+            ).toBeGreaterThan(0);
+        });
+
+        expect(document.querySelectorAll("audio")).toHaveLength(0);
+        expect(screen.getByText("No audio")).toBeInTheDocument();
     });
 
     it("admin can upload audio for an existing song", async () => {
