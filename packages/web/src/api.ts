@@ -1,3 +1,5 @@
+import type { ExtractedMetadata } from "@guess-your-song/shared";
+
 const API_BASE = "/api";
 
 async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
@@ -121,6 +123,15 @@ export function uploadAudioForSong(id: string, file: File) {
         year: number;
         audioFilename: string;
     }>(`/admin/songs/${id}/audio`, { method: "PUT", body: formData });
+}
+
+export function extractMetadata(file: File) {
+    const formData = new FormData();
+    formData.append("audio", file);
+    return request<ExtractedMetadata>("/admin/songs/extract-metadata", {
+        method: "POST",
+        body: formData,
+    });
 }
 
 // Playlists

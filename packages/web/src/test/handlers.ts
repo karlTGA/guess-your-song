@@ -119,6 +119,15 @@ export const handlers = [
         );
     }),
 
+    http.post("/api/admin/songs/extract-metadata", () => {
+        return HttpResponse.json({
+            title: "Mock Title",
+            artist: "Mock Artist",
+            year: 2020,
+            duration: 180,
+        });
+    }),
+
     http.put("/api/admin/songs/:id/audio", ({ params }) => {
         return HttpResponse.json({
             _id: params.id,

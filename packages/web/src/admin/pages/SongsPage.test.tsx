@@ -1,4 +1,10 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import {
+    fireEvent,
+    render,
+    screen,
+    waitFor,
+    within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ConfigProvider } from "antd";
 import { MemoryRouter } from "react-router-dom";
@@ -204,6 +210,250 @@ describe("SongsPage", () => {
 
         await waitFor(() => {
             expect(uploadAudioSpy).toHaveBeenCalledWith("song1", file);
+        });
+    });
+});
+
+function createDropEvent(files: File[]) {
+    return {
+        dataTransfer: {
+            files,
+            items: files.map((file) => ({
+                kind: "file",
+                type: file.type,
+                getAsFile: () => file,
+            })),
+            types: ["Files"],
+        },
+    };
+}
+
+describe("SongsPage batch upload", () => {
+    beforeEach(() => {
+        localStorage.clear();
+    });
+
+    it("dropping audio files shows a batch review table", async () => {
+        const extractSpy = vi.spyOn(api, "extractMetadata").mockResolvedValue({
+            title: "Mock Title",
+            artist: "Mock Artist",
+            year: 2020,
+        });
+        renderSongsPage();
+
+        await waitFor(() => {
+            expect(
+                screen.getAllByText("Bohemian Rhapsody").length,
+            ).toBeGreaterThan(0);
+        });
+
+        const dropZone = screen.getByTestId("drop-zone");
+        const files = [
+            new File(["audio1"], "song1.mp3", { type: "audio/mpeg" }),
+            new File(["audio2"], "song2.mp3", { type: "audio/mpeg" }),
+        ];
+
+        fireEvent.drop(dropZone, createDropEvent(files));
+
+        await waitFor(() => {
+            expect(extractSpy).toHaveBeenCalledTimes(2);
+        });
+
+        // Review table should show with rows for each file
+        expect(screen.getByText("Batch Upload")).toBeInTheDocument();
+        const reviewRows = screen.getAllByTestId("batch-row");
+        expect(reviewRows).toHaveLength(2);
+    });
+
+    it("extracted metadata populates editable fields in review table", async () => {
+        vi.spyOn(api, "extractMetadata").mockResolvedValueOnce({
+            title: "Extracted Title",
+            artist: "Extracted Artist",
+            year: 2019,
+        });
+        renderSongsPage();
+
+        await waitFor(() => {
+            expect(
+                screen.getAllByText("Bohemian Rhapsody").length,
+            ).toBeGreaterThan(0);
+        });
+
+        const dropZone = screen.getByTestId("drop-zone");
+        const files = [
+            new File(["audio1"], "song1.mp3", { type: "audio/mpeg" }),
+        ];
+
+        fireEvent.drop(dropZone, createDropEvent(files));
+
+        await waitFor(() => {
+            expect(screen.getByText("Batch Upload")).toBeInTheDocument();
+        });
+
+        const row = screen.getByTestId("batch-row");
+        const titleInput = within(row).getByLabelText(
+            /title/i,
+        ) as HTMLInputElement;
+        const artistInput = within(row).getByLabelText(
+            /artist/i,
+        ) as HTMLInputElement;
+        const yearInput = within(row).getByLabelText(
+            /year/i,
+        ) as HTMLInputElement;
+
+        expect(titleInput.value).toBe("Extracted Title");
+        expect(artistInput.value).toBe("Extracted Artist");
+        expect(yearInput.value).toBe("2019");
+    });
+
+    it("highlights missing required fields", async () => {
+        vi.spyOn(api, "extractMetadata").mockResolvedValueOnce({});
+        renderSongsPage();
+
+        await waitFor(() => {
+            expect(
+                screen.getAllByText("Bohemian Rhapsody").length,
+            ).toBeGreaterThan(0);
+        });
+
+        const dropZone = screen.getByTestId("drop-zone");
+        const files = [
+            new File(["audio1"], "untagged.mp3", { type: "audio/mpeg" }),
+        ];
+
+        fireEvent.drop(dropZone, createDropEvent(files));
+
+        await waitFor(() => {
+            expect(screen.getByText("Batch Upload")).toBeInTheDocument();
+        });
+
+        // Click confirm without filling fields
+        const user = userEvent.setup();
+        await user.click(
+            screen.getByRole("button", { name: /confirm upload/i }),
+        );
+
+        // Should show validation errors for the empty required fields
+        await waitFor(() => {
+            expect(screen.getByText(/title is required/i)).toBeInTheDocument();
+        });
+    });
+
+    it("user can edit metadata and confirm batch upload", async () => {
+        const uploadSpy = vi.spyOn(api, "uploadSongAudio").mockResolvedValue({
+            _id: "new-song",
+            title: "Edited Title",
+            artist: "Mock Artist",
+            year: 2020,
+            audioFilename: "abc.mp3",
+        });
+        vi.spyOn(api, "extractMetadata").mockResolvedValueOnce({
+            title: "Original Title",
+            artist: "Mock Artist",
+            year: 2020,
+        });
+        renderSongsPage();
+
+        await waitFor(() => {
+            expect(
+                screen.getAllByText("Bohemian Rhapsody").length,
+            ).toBeGreaterThan(0);
+        });
+
+        const dropZone = screen.getByTestId("drop-zone");
+        const file = new File(["audio1"], "song1.mp3", {
+            type: "audio/mpeg",
+        });
+
+        fireEvent.drop(dropZone, createDropEvent([file]));
+
+        await waitFor(() => {
+            expect(screen.getByText("Batch Upload")).toBeInTheDocument();
+        });
+
+        const user = userEvent.setup();
+        const row = screen.getByTestId("batch-row");
+        const titleInput = within(row).getByLabelText(/title/i);
+        await user.clear(titleInput);
+        await user.type(titleInput, "Edited Title");
+
+        await user.click(
+            screen.getByRole("button", { name: /confirm upload/i }),
+        );
+
+        await waitFor(() => {
+            expect(uploadSpy).toHaveBeenCalledWith({
+                title: "Edited Title",
+                artist: "Mock Artist",
+                year: 2020,
+                file: expect.any(File),
+            });
+        });
+    });
+
+    it("individual files can be removed from batch", async () => {
+        const uploadSpy = vi.spyOn(api, "uploadSongAudio").mockResolvedValue({
+            _id: "new-song",
+            title: "Song B",
+            artist: "Artist B",
+            year: 2021,
+            audioFilename: "abc.mp3",
+        });
+        vi.spyOn(api, "extractMetadata")
+            .mockResolvedValueOnce({
+                title: "Song A",
+                artist: "Artist A",
+                year: 2020,
+            })
+            .mockResolvedValueOnce({
+                title: "Song B",
+                artist: "Artist B",
+                year: 2021,
+            });
+        renderSongsPage();
+
+        await waitFor(() => {
+            expect(
+                screen.getAllByText("Bohemian Rhapsody").length,
+            ).toBeGreaterThan(0);
+        });
+
+        const dropZone = screen.getByTestId("drop-zone");
+        const files = [
+            new File(["audio1"], "songA.mp3", { type: "audio/mpeg" }),
+            new File(["audio2"], "songB.mp3", { type: "audio/mpeg" }),
+        ];
+
+        fireEvent.drop(dropZone, createDropEvent(files));
+
+        await waitFor(() => {
+            const rows = screen.getAllByTestId("batch-row");
+            expect(rows).toHaveLength(2);
+        });
+
+        // Remove first file
+        const user = userEvent.setup();
+        const removeButtons = screen.getAllByRole("button", {
+            name: /remove/i,
+        });
+        await user.click(removeButtons[0]);
+
+        const rows = screen.getAllByTestId("batch-row");
+        expect(rows).toHaveLength(1);
+
+        // Confirm — only the remaining song should be uploaded
+        await user.click(
+            screen.getByRole("button", { name: /confirm upload/i }),
+        );
+
+        await waitFor(() => {
+            expect(uploadSpy).toHaveBeenCalledTimes(1);
+            expect(uploadSpy).toHaveBeenCalledWith({
+                title: "Song B",
+                artist: "Artist B",
+                year: 2021,
+                file: expect.any(File),
+            });
         });
     });
 });

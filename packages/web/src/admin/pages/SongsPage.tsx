@@ -1,5 +1,7 @@
 import {
+    CloseOutlined,
     DeleteOutlined,
+    InboxOutlined,
     PlusOutlined,
     UploadOutlined,
 } from "@ant-design/icons";
@@ -20,6 +22,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
     createSong,
     deleteSong,
+    extractMetadata,
     getSongs,
     uploadAudioForSong,
     uploadSongAudio,
@@ -35,6 +38,14 @@ interface Song {
     audioFilename?: string;
 }
 
+interface BatchEntry {
+    file: File;
+    title: string;
+    artist: string;
+    year: number | undefined;
+    errors: { title?: string; artist?: string; year?: string };
+}
+
 export default function SongsPage() {
     const [songs, setSongs] = useState<Song[]>([]);
     const [loading, setLoading] = useState(false);
@@ -42,6 +53,9 @@ export default function SongsPage() {
     const [audioFile, setAudioFile] = useState<File | null>(null);
     const [form] = Form.useForm();
     const uploadRefs = useRef<Record<string, HTMLInputElement | null>>({});
+    const [batchEntries, setBatchEntries] = useState<BatchEntry[]>([]);
+    const [batchUploading, setBatchUploading] = useState(false);
+    const [dragOver, setDragOver] = useState(false);
 
     const loadSongs = useCallback(async () => {
         setLoading(true);
@@ -97,6 +111,108 @@ export default function SongsPage() {
             loadSongs();
         } catch {
             message.error("Failed to upload audio");
+        }
+    };
+
+    const handleDrop = async (e: React.DragEvent) => {
+        e.preventDefault();
+        setDragOver(false);
+        const files = Array.from(e.dataTransfer.files).filter((f) =>
+            f.type.startsWith("audio/"),
+        );
+        if (files.length === 0) return;
+
+        const entries: BatchEntry[] = await Promise.all(
+            files.map(async (file) => {
+                try {
+                    const meta = await extractMetadata(file);
+                    return {
+                        file,
+                        title: meta.title ?? "",
+                        artist: meta.artist ?? "",
+                        year: meta.year,
+                        errors: {},
+                    };
+                } catch {
+                    return {
+                        file,
+                        title: "",
+                        artist: "",
+                        year: undefined,
+                        errors: {},
+                    };
+                }
+            }),
+        );
+        setBatchEntries(entries);
+    };
+
+    const updateBatchEntry = (
+        index: number,
+        field: keyof Pick<BatchEntry, "title" | "artist" | "year">,
+        value: string | number | undefined,
+    ) => {
+        setBatchEntries((prev) =>
+            prev.map((entry, i) =>
+                i === index
+                    ? {
+                          ...entry,
+                          [field]: value,
+                          errors: { ...entry.errors, [field]: undefined },
+                      }
+                    : entry,
+            ),
+        );
+    };
+
+    const removeBatchEntry = (index: number) => {
+        setBatchEntries((prev) => prev.filter((_, i) => i !== index));
+    };
+
+    const handleBatchConfirm = async () => {
+        // Validate all entries
+        let hasErrors = false;
+        const validated = batchEntries.map((entry) => {
+            const errors: BatchEntry["errors"] = {};
+            if (!entry.title.trim()) {
+                errors.title = "Title is required";
+                hasErrors = true;
+            }
+            if (!entry.artist.trim()) {
+                errors.artist = "Artist is required";
+                hasErrors = true;
+            }
+            if (!entry.year) {
+                errors.year = "Year is required";
+                hasErrors = true;
+            }
+            return { ...entry, errors };
+        });
+
+        if (hasErrors) {
+            setBatchEntries(validated);
+            return;
+        }
+
+        setBatchUploading(true);
+        try {
+            await Promise.all(
+                batchEntries.map((entry) =>
+                    uploadSongAudio({
+                        title: entry.title,
+                        artist: entry.artist,
+                        year: entry.year as number,
+                        file: entry.file,
+                    }),
+                ),
+            );
+            message.success(`${batchEntries.length} songs uploaded`);
+            setBatchEntries([]);
+            loadSongs();
+        } catch {
+            message.error("Failed to upload some songs");
+        } finally {
+            setBatchUploading(false);
         }
     };
 
@@ -185,6 +301,179 @@ export default function SongsPage() {
                     Add Song
                 </Button>
             </Space>
+
+            <section
+                data-testid="drop-zone"
+                aria-label="Drop zone for audio files"
+                onDrop={handleDrop}
+                onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragOver(true);
+                }}
+                onDragLeave={() => setDragOver(false)}
+                style={{
+                    border: `2px dashed ${dragOver ? "#1677ff" : "#d9d9d9"}`,
+                    borderRadius: 8,
+                    padding: 24,
+                    textAlign: "center",
+                    marginBottom: 16,
+                    background: dragOver ? "#e6f4ff" : "#fafafa",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                }}
+            >
+                <InboxOutlined
+                    style={{ fontSize: 32, color: "#999", display: "block" }}
+                />
+                <p style={{ margin: "8px 0 0", color: "#666" }}>
+                    Drop audio files here for batch upload
+                </p>
+            </section>
+
+            {batchEntries.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                    <Space
+                        style={{
+                            marginBottom: 8,
+                            display: "flex",
+                            justifyContent: "space-between",
+                        }}
+                    >
+                        <Title level={5} style={{ margin: 0 }}>
+                            Batch Upload
+                        </Title>
+                        <Space>
+                            <Button onClick={() => setBatchEntries([])}>
+                                Cancel
+                            </Button>
+                            <Button
+                                type="primary"
+                                onClick={handleBatchConfirm}
+                                loading={batchUploading}
+                            >
+                                Confirm Upload
+                            </Button>
+                        </Space>
+                    </Space>
+                    {batchEntries.map((entry, index) => (
+                        <div
+                            key={`${entry.file.name}-${entry.file.size}`}
+                            data-testid="batch-row"
+                            style={{
+                                display: "flex",
+                                gap: 8,
+                                alignItems: "flex-start",
+                                marginBottom: 8,
+                                padding: 8,
+                                background: "#fafafa",
+                                borderRadius: 4,
+                            }}
+                        >
+                            <div style={{ flex: 1 }}>
+                                <Input
+                                    aria-label="Title"
+                                    placeholder="Title"
+                                    value={entry.title}
+                                    status={
+                                        entry.errors.title ? "error" : undefined
+                                    }
+                                    onChange={(e) =>
+                                        updateBatchEntry(
+                                            index,
+                                            "title",
+                                            e.target.value,
+                                        )
+                                    }
+                                />
+                                {entry.errors.title && (
+                                    <div
+                                        style={{
+                                            color: "#ff4d4f",
+                                            fontSize: 12,
+                                        }}
+                                    >
+                                        {entry.errors.title}
+                                    </div>
+                                )}
+                            </div>
+                            <div style={{ flex: 1 }}>
+                                <Input
+                                    aria-label="Artist"
+                                    placeholder="Artist"
+                                    value={entry.artist}
+                                    status={
+                                        entry.errors.artist
+                                            ? "error"
+                                            : undefined
+                                    }
+                                    onChange={(e) =>
+                                        updateBatchEntry(
+                                            index,
+                                            "artist",
+                                            e.target.value,
+                                        )
+                                    }
+                                />
+                                {entry.errors.artist && (
+                                    <div
+                                        style={{
+                                            color: "#ff4d4f",
+                                            fontSize: 12,
+                                        }}
+                                    >
+                                        {entry.errors.artist}
+                                    </div>
+                                )}
+                            </div>
+                            <div style={{ width: 100 }}>
+                                <InputNumber
+                                    aria-label="Year"
+                                    placeholder="Year"
+                                    value={entry.year}
+                                    status={
+                                        entry.errors.year ? "error" : undefined
+                                    }
+                                    style={{ width: "100%" }}
+                                    onChange={(value) =>
+                                        updateBatchEntry(
+                                            index,
+                                            "year",
+                                            value ?? undefined,
+                                        )
+                                    }
+                                />
+                                {entry.errors.year && (
+                                    <div
+                                        style={{
+                                            color: "#ff4d4f",
+                                            fontSize: 12,
+                                        }}
+                                    >
+                                        {entry.errors.year}
+                                    </div>
+                                )}
+                            </div>
+                            <div
+                                style={{
+                                    minWidth: 120,
+                                    color: "#999",
+                                    fontSize: 12,
+                                    paddingTop: 4,
+                                }}
+                            >
+                                {entry.file.name}
+                            </div>
+                            <Button
+                                type="text"
+                                danger
+                                icon={<CloseOutlined />}
+                                aria-label="Remove"
+                                onClick={() => removeBatchEntry(index)}
+                            />
+                        </div>
+                    ))}
+                </div>
+            )}
 
             <Table
                 dataSource={songs}

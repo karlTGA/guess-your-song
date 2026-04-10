@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { parseBuffer } from "music-metadata";
 import { SongModel } from "../../models/Song";
 import { authenticate } from "../../plugins/auth";
 
@@ -121,5 +122,29 @@ export async function songRoutes(app: FastifyInstance) {
         await song.save();
 
         return reply.send(song);
+    });
+
+    app.post("/api/admin/songs/extract-metadata", async (request, reply) => {
+        const data = await request.file();
+        if (!data) {
+            return reply.status(400).send({ error: "No file uploaded" });
+        }
+
+        const chunks: Buffer[] = [];
+        for await (const chunk of data.file) {
+            chunks.push(chunk);
+        }
+        const fileBuffer = Buffer.concat(chunks);
+
+        const metadata = await parseBuffer(fileBuffer);
+
+        const result: Record<string, unknown> = {};
+        if (metadata.common.title) result.title = metadata.common.title;
+        if (metadata.common.artist) result.artist = metadata.common.artist;
+        if (metadata.common.year) result.year = metadata.common.year;
+        if (metadata.format.duration)
+            result.duration = metadata.format.duration;
+
+        return reply.send(result);
     });
 }

@@ -336,3 +336,154 @@ describe("admin songs API", () => {
         expect(response.statusCode).toBe(404);
     });
 });
+
+/**
+ * Build a minimal MP3 buffer with ID3v2.3 tags for testing.
+ * Creates valid ID3v2.3 header + text frames, followed by a minimal MPEG frame.
+ */
+function buildId3TaggedMp3(tags: {
+    title?: string;
+    artist?: string;
+    year?: string;
+}): Buffer {
+    const frames: Buffer[] = [];
+
+    function textFrame(id: string, text: string): Buffer {
+        // Text frame: 4-byte ID, 4-byte size, 2-byte flags, 1-byte encoding (0=latin1), text
+        const textBuf = Buffer.from(text, "latin1");
+        const size = 1 + textBuf.length; // encoding byte + text
+        const header = Buffer.alloc(10);
+        header.write(id, 0, 4, "ascii");
+        header.writeUInt32BE(size, 4);
+        // flags = 0x0000 (bytes 8-9 already zero)
+        return Buffer.concat([header, Buffer.from([0x00]), textBuf]);
+    }
+
+    if (tags.title) frames.push(textFrame("TIT2", tags.title));
+    if (tags.artist) frames.push(textFrame("TPE1", tags.artist));
+    if (tags.year) frames.push(textFrame("TDRC", tags.year));
+
+    const framesBuffer = Buffer.concat(frames);
+
+    // ID3v2.3 header: "ID3", version 3.0, no flags, size (syncsafe)
+    const id3Header = Buffer.alloc(10);
+    id3Header.write("ID3", 0, 3, "ascii");
+    id3Header[3] = 3; // version major
+    id3Header[4] = 0; // version minor
+    id3Header[5] = 0; // flags
+    // Syncsafe integer encoding for size
+    const tagSize = framesBuffer.length;
+    id3Header[6] = (tagSize >> 21) & 0x7f;
+    id3Header[7] = (tagSize >> 14) & 0x7f;
+    id3Header[8] = (tagSize >> 7) & 0x7f;
+    id3Header[9] = tagSize & 0x7f;
+
+    // Minimal silent MPEG audio frame (MPEG1 Layer3, 128kbps, 44100Hz, mono)
+    // Frame header: 0xFF 0xFB 0x90 0x00
+    const mpegFrame = Buffer.alloc(417, 0);
+    mpegFrame[0] = 0xff;
+    mpegFrame[1] = 0xfb;
+    mpegFrame[2] = 0x90;
+    mpegFrame[3] = 0x00;
+
+    return Buffer.concat([id3Header, framesBuffer, mpegFrame]);
+}
+
+describe("extract-metadata endpoint", () => {
+    let app: FastifyInstance;
+    let token: string;
+
+    beforeEach(async () => {
+        app = await buildTestApp({ uploadDir: TEST_UPLOAD_DIR });
+        token = await registerAndLogin(app);
+    });
+
+    afterEach(async () => {
+        await app.close();
+        if (fs.existsSync(TEST_UPLOAD_DIR)) {
+            fs.rmSync(TEST_UPLOAD_DIR, { recursive: true });
+        }
+    });
+
+    it("extracts metadata from an audio file with ID3 tags", async () => {
+        const mp3 = buildId3TaggedMp3({
+            title: "Test Song",
+            artist: "Test Artist",
+            year: "2020",
+        });
+        const { body, contentType } = createMultipartPayload(
+            {},
+            {
+                fieldname: "audio",
+                filename: "tagged.mp3",
+                content: mp3,
+                contentType: "audio/mpeg",
+            },
+        );
+
+        const response = await app.inject({
+            method: "POST",
+            url: "/api/admin/songs/extract-metadata",
+            headers: {
+                authorization: `Bearer ${token}`,
+                "content-type": contentType,
+            },
+            payload: body,
+        });
+
+        expect(response.statusCode).toBe(200);
+        const metadata = response.json();
+        expect(metadata.title).toBe("Test Song");
+        expect(metadata.artist).toBe("Test Artist");
+        expect(metadata.year).toBe(2020);
+    });
+
+    it("returns partial metadata for files without tags", async () => {
+        const plainAudio = Buffer.alloc(417, 0);
+        plainAudio[0] = 0xff;
+        plainAudio[1] = 0xfb;
+        plainAudio[2] = 0x90;
+        plainAudio[3] = 0x00;
+
+        const { body, contentType } = createMultipartPayload(
+            {},
+            {
+                fieldname: "audio",
+                filename: "untagged.mp3",
+                content: plainAudio,
+                contentType: "audio/mpeg",
+            },
+        );
+
+        const response = await app.inject({
+            method: "POST",
+            url: "/api/admin/songs/extract-metadata",
+            headers: {
+                authorization: `Bearer ${token}`,
+                "content-type": contentType,
+            },
+            payload: body,
+        });
+
+        expect(response.statusCode).toBe(200);
+        const metadata = response.json();
+        expect(metadata.title).toBeUndefined();
+        expect(metadata.artist).toBeUndefined();
+        expect(metadata.year).toBeUndefined();
+    });
+
+    it("returns 400 when no file is provided", async () => {
+        const response = await app.inject({
+            method: "POST",
+            url: "/api/admin/songs/extract-metadata",
+            headers: {
+                authorization: `Bearer ${token}`,
+                "content-type":
+                    "multipart/form-data; boundary=----TestBoundary",
+            },
+            payload: Buffer.from("------TestBoundary--\r\n"),
+        });
+
+        expect(response.statusCode).toBe(400);
+    });
+});

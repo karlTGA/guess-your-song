@@ -21,3 +21,10 @@ export interface UpdateSongInput {
     year?: number;
     duration?: number;
 }
+
+export interface ExtractedMetadata {
+    title?: string;
+    artist?: string;
+    year?: number;
+    duration?: number;
+}

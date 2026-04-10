@@ -22,4 +22,9 @@ export type {
     Playlist,
     UpdatePlaylistInput,
 } from "./types/playlist";
-export type { CreateSongInput, Song, UpdateSongInput } from "./types/song";
+export type {
+    CreateSongInput,
+    ExtractedMetadata,
+    Song,
+    UpdateSongInput,
+} from "./types/song";
