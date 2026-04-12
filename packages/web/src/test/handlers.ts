@@ -8,6 +8,7 @@ const songs = [
         artist: "Queen",
         year: 1975,
         audioFilename: "abc.mp3",
+        thumbnailFilename: "thumb1.jpg",
         createdAt: "2024-01-01",
     },
     {
@@ -16,6 +17,7 @@ const songs = [
         artist: "Michael Jackson",
         year: 1982,
         audioFilename: "def.mp3",
+        thumbnailFilename: "thumb2.jpg",
         createdAt: "2024-01-02",
     },
 ];
@@ -25,6 +27,7 @@ const playlists = [
         _id: "pl1",
         name: "Classic Hits",
         description: "Best classics",
+        thumbnailFilename: "pl-thumb1.jpg",
         songs: ["song1", "song2"],
         createdAt: "2024-01-01",
     },
@@ -126,6 +129,7 @@ export const handlers = [
             artist: "Mock Artist",
             year: 2020,
             duration: 180,
+            thumbnail: "data:image/jpeg;base64,/9j/mock",
         });
     }),
 
@@ -136,6 +140,16 @@ export const handlers = [
             artist: "Queen",
             year: 1975,
             audioFilename: "new-audio.mp3",
+        });
+    }),
+
+    http.put("/api/admin/songs/:id/thumbnail", ({ params }) => {
+        return HttpResponse.json({
+            _id: params.id,
+            title: "Bohemian Rhapsody",
+            artist: "Queen",
+            year: 1975,
+            thumbnailFilename: "new-thumb.jpg",
         });
     }),
 
@@ -167,6 +181,14 @@ export const handlers = [
 
     http.delete("/api/admin/playlists/:id", () => {
         return new HttpResponse(null, { status: 204 });
+    }),
+
+    http.put("/api/admin/playlists/:id/thumbnail", ({ params }) => {
+        return HttpResponse.json({
+            _id: params.id,
+            name: "Classic Hits",
+            thumbnailFilename: "new-pl-thumb.jpg",
+        });
     }),
 
     // Sessions
@@ -223,6 +245,8 @@ export const handlers = [
                 name: "Classic Hits",
                 description: "Best classics",
                 songCount: 2,
+                thumbnailFilename: "pl-thumb1.jpg",
+                firstSongThumbnail: "thumb1.jpg",
             },
         ]);
     }),
@@ -303,6 +327,7 @@ export const handlers = [
             currentRound: {
                 songId: "song1",
                 audioFilename: "abc.mp3",
+                thumbnailFilename: "thumb1.jpg",
                 startedAt: new Date().toISOString(),
             },
             player: {
@@ -328,6 +353,7 @@ export const handlers = [
                 title: "Bohemian Rhapsody",
                 artist: "Queen",
                 year: 1975,
+                thumbnailFilename: "thumb1.jpg",
             },
             player: {
                 name: body.playerName,
@@ -337,6 +363,7 @@ export const handlers = [
                         title: "Bohemian Rhapsody",
                         artist: "Queen",
                         year: 1975,
+                        thumbnailFilename: "thumb1.jpg",
                     },
                 ],
                 score: 1,
@@ -369,12 +396,14 @@ export const handlers = [
                             title: "Bohemian Rhapsody",
                             artist: "Queen",
                             year: 1975,
+                            thumbnailFilename: "thumb1.jpg",
                         },
                         {
                             _id: "song2",
                             title: "Billie Jean",
                             artist: "Michael Jackson",
                             year: 1982,
+                            thumbnailFilename: "thumb2.jpg",
                         },
                     ],
                 },

@@ -169,4 +169,50 @@ describe("PlaylistsPage", () => {
         const dataRow = rows[1];
         expect(within(dataRow).getByText("2")).toBeInTheDocument();
     });
+
+    it("shows thumbnail image for playlists with thumbnailFilename", async () => {
+        renderPlaylistsPage();
+
+        await waitFor(() => {
+            expect(screen.getAllByText("Classic Hits").length).toBeGreaterThan(
+                0,
+            );
+        });
+
+        const thumbnails = screen.getAllByRole("img", {
+            name: /thumbnail/i,
+        });
+        expect(thumbnails.length).toBe(1);
+        expect(thumbnails[0]).toHaveAttribute(
+            "src",
+            "/thumbnails/pl-thumb1.jpg",
+        );
+    });
+
+    it("admin can upload thumbnail for a playlist", async () => {
+        const uploadThumbnailSpy = vi.spyOn(api, "uploadPlaylistThumbnail");
+        const user = userEvent.setup();
+        renderPlaylistsPage();
+
+        await waitFor(() => {
+            expect(screen.getAllByText("Classic Hits").length).toBeGreaterThan(
+                0,
+            );
+        });
+
+        const uploadButtons = screen.getAllByRole("button", {
+            name: /upload thumbnail/i,
+        });
+        expect(uploadButtons.length).toBeGreaterThan(0);
+
+        const file = new File(["img-data"], "cover.jpg", {
+            type: "image/jpeg",
+        });
+        const fileInputs = screen.getAllByTestId("thumbnail-upload-input");
+        await user.upload(fileInputs[0], file);
+
+        await waitFor(() => {
+            expect(uploadThumbnailSpy).toHaveBeenCalledWith("pl1", file);
+        });
+    });
 });

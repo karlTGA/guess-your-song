@@ -53,10 +53,10 @@ export async function songRoutes(app: FastifyInstance) {
         if (song.audioFilename) {
             await app.storageService.delete(song.audioFilename);
         }
-        await PlaylistModel.updateMany(
-            { songs: id },
-            { $pull: { songs: id } },
-        );
+        if (song.thumbnailFilename) {
+            await app.thumbnailStorageService.delete(song.thumbnailFilename);
+        }
+        await PlaylistModel.updateMany({ songs: id }, { $pull: { songs: id } });
         return reply.status(204).send();
     });
 
@@ -84,11 +84,29 @@ export async function songRoutes(app: FastifyInstance) {
             data.filename,
         );
 
+        // Auto-extract thumbnail from album art
+        let thumbnailFilename: string | undefined;
+        try {
+            const metadata = await parseBuffer(fileBuffer);
+            if (metadata.common.picture && metadata.common.picture.length > 0) {
+                const pic = metadata.common.picture[0];
+                const ext =
+                    pic.format.split("/")[1]?.replace("jpeg", "jpg") || "jpg";
+                thumbnailFilename = await app.thumbnailStorageService.save(
+                    Buffer.from(pic.data),
+                    `cover.${ext}`,
+                );
+            }
+        } catch {
+            // Ignore metadata extraction errors
+        }
+
         const song = await SongModel.create({
             title: fields.title,
             artist: fields.artist,
             year: parseInt(fields.year, 10),
             audioFilename,
+            thumbnailFilename,
         });
 
         return reply.status(201).send(song);
@@ -129,6 +147,40 @@ export async function songRoutes(app: FastifyInstance) {
         return reply.send(song);
     });
 
+    app.put("/api/admin/songs/:id/thumbnail", async (request, reply) => {
+        const { id } = request.params as { id: string };
+
+        const song = await SongModel.findById(id);
+        if (!song) {
+            return reply.status(404).send({ error: "Song not found" });
+        }
+
+        const data = await request.file();
+        if (!data) {
+            return reply.status(400).send({ error: "No file uploaded" });
+        }
+
+        const chunks: Buffer[] = [];
+        for await (const chunk of data.file) {
+            chunks.push(chunk);
+        }
+        const fileBuffer = Buffer.concat(chunks);
+
+        if (song.thumbnailFilename) {
+            await app.thumbnailStorageService.delete(song.thumbnailFilename);
+        }
+
+        const thumbnailFilename = await app.thumbnailStorageService.save(
+            fileBuffer,
+            data.filename,
+        );
+
+        song.thumbnailFilename = thumbnailFilename;
+        await song.save();
+
+        return reply.send(song);
+    });
+
     app.post("/api/admin/songs/extract-metadata", async (request, reply) => {
         const data = await request.file();
         if (!data) {
@@ -149,6 +201,11 @@ export async function songRoutes(app: FastifyInstance) {
         if (metadata.common.year) result.year = metadata.common.year;
         if (metadata.format.duration)
             result.duration = metadata.format.duration;
+        if (metadata.common.picture && metadata.common.picture.length > 0) {
+            const pic = metadata.common.picture[0];
+            const base64 = Buffer.from(pic.data).toString("base64");
+            result.thumbnail = `data:${pic.format};base64,${base64}`;
+        }
 
         return reply.send(result);
     });

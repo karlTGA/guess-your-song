@@ -30,6 +30,7 @@ import {
     updateSong,
     uploadAudioForSong,
     uploadSongAudio,
+    uploadSongThumbnail,
 } from "../../api";
 
 const { Title } = Typography;
@@ -40,6 +41,7 @@ interface Song {
     artist: string;
     year: number;
     audioFilename?: string;
+    thumbnailFilename?: string;
 }
 
 interface Playlist {
@@ -53,6 +55,7 @@ interface BatchEntry {
     title: string;
     artist: string;
     year: number | undefined;
+    thumbnail?: string;
     errors: { title?: string; artist?: string; year?: string };
 }
 
@@ -61,6 +64,7 @@ export default function SongsPage() {
     const [loading, setLoading] = useState(false);
     const [modalOpen, setModalOpen] = useState(false);
     const uploadRefs = useRef<Record<string, HTMLInputElement | null>>({});
+    const thumbnailRefs = useRef<Record<string, HTMLInputElement | null>>({});
     const [batchEntries, setBatchEntries] = useState<BatchEntry[]>([]);
     const [batchUploading, setBatchUploading] = useState(false);
     const [dragOver, setDragOver] = useState(false);
@@ -123,6 +127,16 @@ export default function SongsPage() {
         }
     };
 
+    const handleUploadThumbnail = async (id: string, file: File) => {
+        try {
+            await uploadSongThumbnail(id, file);
+            message.success("Thumbnail uploaded");
+            loadSongs();
+        } catch {
+            message.error("Failed to upload thumbnail");
+        }
+    };
+
     const handleOpenModal = () => {
         setModalOpen(true);
         loadPlaylists();
@@ -182,6 +196,7 @@ export default function SongsPage() {
                         title: meta.title ?? "",
                         artist: meta.artist ?? "",
                         year: meta.year,
+                        thumbnail: meta.thumbnail,
                         errors: {},
                     };
                 } catch {
@@ -365,11 +380,35 @@ export default function SongsPage() {
                 renderEditableCell(value, record, "year"),
         },
         {
+            title: "Thumbnail",
+            key: "thumbnail",
+            render: (_: unknown, record: Song) =>
+                record.thumbnailFilename ? (
+                    <img
+                        src={`/thumbnails/${record.thumbnailFilename}`}
+                        alt={`${record.title} thumbnail`}
+                        style={{
+                            width: 48,
+                            height: 48,
+                            objectFit: "cover",
+                            borderRadius: 4,
+                        }}
+                    />
+                ) : (
+                    <Tag>No thumbnail</Tag>
+                ),
+        },
+        {
             title: "Audio",
             key: "audio",
             render: (_: unknown, record: Song) =>
                 record.audioFilename ? (
-                    <Tag color="green">Has audio</Tag>
+                    // biome-ignore lint/a11y/useMediaCaption: music preview player, no captions needed
+                    <audio
+                        controls
+                        preload="none"
+                        src={`/audio/${record.audioFilename}`}
+                    />
                 ) : (
                     <Tag>No audio</Tag>
                 ),
@@ -398,6 +437,30 @@ export default function SongsPage() {
                             const file = e.target.files?.[0];
                             if (file) {
                                 handleUploadAudio(record._id, file);
+                            }
+                        }}
+                    />
+                    <Button
+                        icon={<UploadOutlined />}
+                        aria-label="Upload Thumbnail"
+                        onClick={() =>
+                            thumbnailRefs.current[record._id]?.click()
+                        }
+                    >
+                        Upload Thumbnail
+                    </Button>
+                    <input
+                        type="file"
+                        accept="image/*"
+                        data-testid="thumbnail-upload-input"
+                        ref={(el) => {
+                            thumbnailRefs.current[record._id] = el;
+                        }}
+                        style={{ display: "none" }}
+                        onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                                handleUploadThumbnail(record._id, file);
                             }
                         }}
                     />
@@ -520,6 +583,18 @@ export default function SongsPage() {
                                         borderRadius: 4,
                                     }}
                                 >
+                                    {entry.thumbnail && (
+                                        <img
+                                            src={entry.thumbnail}
+                                            alt="Thumbnail preview"
+                                            style={{
+                                                width: 48,
+                                                height: 48,
+                                                objectFit: "cover",
+                                                borderRadius: 4,
+                                            }}
+                                        />
+                                    )}
                                     <div style={{ flex: 1 }}>
                                         <Input
                                             aria-label="Title"

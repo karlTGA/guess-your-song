@@ -17,6 +17,7 @@ import { StorageService } from "./services/storageService";
 declare module "fastify" {
     interface FastifyInstance {
         storageService: StorageService;
+        thumbnailStorageService: StorageService;
     }
 }
 
@@ -33,6 +34,11 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     const storageService = new StorageService(config.uploadDir);
     app.decorate("storageService", storageService);
 
+    const thumbnailStorageService = new StorageService(
+        path.join(config.uploadDir, "thumbnails"),
+    );
+    app.decorate("thumbnailStorageService", thumbnailStorageService);
+
     app.addHook("onClose", async () => {
         if (!wasConnected) {
             await mongoose.disconnect();
@@ -45,6 +51,11 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     await app.register(fastifyStatic, {
         root: path.resolve(config.uploadDir),
         prefix: "/audio/",
+        decorateReply: false,
+    });
+    await app.register(fastifyStatic, {
+        root: path.resolve(config.uploadDir, "thumbnails"),
+        prefix: "/thumbnails/",
         decorateReply: false,
     });
 

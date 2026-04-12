@@ -57,4 +57,19 @@ describe("ResultsPage", () => {
             screen.getByRole("button", { name: /new game/i }),
         ).toBeInTheDocument();
     });
+
+    it("shows thumbnails in player timelines", async () => {
+        renderResultsPage();
+
+        await waitFor(() => {
+            expect(screen.getByText(/Alice/)).toBeInTheDocument();
+        });
+
+        const thumbnails = screen.getAllByRole("img", {
+            name: /thumbnail/i,
+        });
+        expect(thumbnails.length).toBe(2);
+        expect(thumbnails[0]).toHaveAttribute("src", "/thumbnails/thumb1.jpg");
+        expect(thumbnails[1]).toHaveAttribute("src", "/thumbnails/thumb2.jpg");
+    });
 });

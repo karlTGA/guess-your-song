@@ -105,4 +105,17 @@ describe("StartGamePage", () => {
         expect(spy).toHaveBeenCalledWith("pl1", "Alice", 2);
         spy.mockRestore();
     });
+
+    it("shows playlist thumbnail when available", async () => {
+        renderStartGamePage();
+
+        await waitFor(() => {
+            expect(screen.getByText("Classic Hits")).toBeInTheDocument();
+        });
+
+        const thumbnail = screen.getByRole("img", {
+            name: /thumbnail/i,
+        });
+        expect(thumbnail).toHaveAttribute("src", "/thumbnails/pl-thumb1.jpg");
+    });
 });

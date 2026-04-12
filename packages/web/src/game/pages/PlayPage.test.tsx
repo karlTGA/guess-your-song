@@ -352,4 +352,48 @@ describe("PlayPage", () => {
             expect(screen.getByText("Results Page")).toBeInTheDocument();
         });
     });
+
+    it("shows thumbnail in timeline cards when available", async () => {
+        server.use(
+            http.get("/api/game/sessions/:code/state", ({ request }) => {
+                const url = new URL(request.url);
+                const playerName = url.searchParams.get("playerName");
+                return HttpResponse.json({
+                    status: "playing",
+                    currentRound: {
+                        songId: "song2",
+                        audioFilename: "def.mp3",
+                        thumbnailFilename: "thumb2.jpg",
+                        startedAt: new Date().toISOString(),
+                    },
+                    player: {
+                        name: playerName,
+                        timeline: [
+                            {
+                                _id: "song1",
+                                title: "Bohemian Rhapsody",
+                                artist: "Queen",
+                                year: 1975,
+                                thumbnailFilename: "thumb1.jpg",
+                            },
+                        ],
+                        score: 1,
+                    },
+                    totalRounds: 3,
+                    currentRoundIndex: 1,
+                });
+            }),
+        );
+
+        renderPlayPage();
+
+        await waitFor(() => {
+            expect(screen.getByText("Bohemian Rhapsody")).toBeInTheDocument();
+        });
+
+        const thumbnail = screen.getByRole("img", {
+            name: /thumbnail/i,
+        });
+        expect(thumbnail).toHaveAttribute("src", "/thumbnails/thumb1.jpg");
+    });
 });

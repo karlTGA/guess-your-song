@@ -1,6 +1,9 @@
+import fs from "node:fs";
 import type { FastifyInstance } from "fastify";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildTestApp } from "../../test/helpers";
+
+const TEST_UPLOAD_DIR = "./test-uploads-game";
 
 async function registerAndLogin(app: FastifyInstance) {
     await app.inject({
@@ -496,5 +499,254 @@ describe("public game creation", () => {
         });
 
         expect(response.statusCode).toBe(400);
+    });
+});
+
+function createMultipartPayload(
+    fields: Record<string, string>,
+    file?: {
+        fieldname: string;
+        filename: string;
+        content: Buffer;
+        contentType: string;
+    },
+) {
+    const boundary = `----TestBoundary${Date.now()}`;
+    const parts: Buffer[] = [];
+
+    for (const [key, value] of Object.entries(fields)) {
+        parts.push(
+            Buffer.from(
+                `--${boundary}\r\nContent-Disposition: form-data; name="${key}"\r\n\r\n${value}\r\n`,
+            ),
+        );
+    }
+
+    if (file) {
+        parts.push(
+            Buffer.from(
+                `--${boundary}\r\nContent-Disposition: form-data; name="${file.fieldname}"; filename="${file.filename}"\r\nContent-Type: ${file.contentType}\r\n\r\n`,
+            ),
+        );
+        parts.push(file.content);
+        parts.push(Buffer.from("\r\n"));
+    }
+
+    parts.push(Buffer.from(`--${boundary}--\r\n`));
+
+    return {
+        body: Buffer.concat(parts),
+        contentType: `multipart/form-data; boundary=${boundary}`,
+    };
+}
+
+describe("game endpoints include thumbnails", () => {
+    let app: FastifyInstance;
+    let token: string;
+
+    beforeEach(async () => {
+        app = await buildTestApp({ uploadDir: TEST_UPLOAD_DIR });
+        token = await registerAndLogin(app);
+    });
+
+    afterEach(async () => {
+        await app.close();
+        if (fs.existsSync(TEST_UPLOAD_DIR)) {
+            fs.rmSync(TEST_UPLOAD_DIR, { recursive: true });
+        }
+    });
+
+    async function createSongWithThumbnail(
+        title: string,
+        artist: string,
+        year: number,
+    ) {
+        const songRes = await app.inject({
+            method: "POST",
+            url: "/api/admin/songs",
+            headers: { authorization: `Bearer ${token}` },
+            payload: { title, artist, year },
+        });
+        const song = songRes.json();
+
+        const fakeImage = Buffer.from("fake-thumb");
+        const { body, contentType } = createMultipartPayload(
+            {},
+            {
+                fieldname: "thumbnail",
+                filename: "cover.jpg",
+                content: fakeImage,
+                contentType: "image/jpeg",
+            },
+        );
+        const thumbRes = await app.inject({
+            method: "PUT",
+            url: `/api/admin/songs/${song._id}/thumbnail`,
+            headers: {
+                authorization: `Bearer ${token}`,
+                "content-type": contentType,
+            },
+            payload: body,
+        });
+        return thumbRes.json();
+    }
+
+    it("game state includes thumbnailFilename for current round song", async () => {
+        const song1 = await createSongWithThumbnail("Song A", "A", 1980);
+        const song2 = await createSongWithThumbnail("Song B", "B", 1990);
+
+        const playlistRes = await app.inject({
+            method: "POST",
+            url: "/api/admin/playlists",
+            headers: { authorization: `Bearer ${token}` },
+            payload: {
+                name: "Thumb Playlist",
+                songs: [song1._id, song2._id],
+            },
+        });
+
+        const sessionRes = await app.inject({
+            method: "POST",
+            url: "/api/game/sessions",
+            payload: {
+                playlistId: playlistRes.json()._id,
+                playerName: "Alice",
+            },
+        });
+        const code = sessionRes.json().code;
+
+        const stateRes = await app.inject({
+            method: "GET",
+            url: `/api/game/sessions/${code}/state?playerName=Alice`,
+        });
+
+        expect(stateRes.statusCode).toBe(200);
+        const state = stateRes.json();
+        expect(state.currentRound.thumbnailFilename).toBeDefined();
+        expect(state.currentRound.thumbnailFilename).toMatch(/\.jpg$/);
+    });
+
+    it("place response includes thumbnailFilename in song and timeline", async () => {
+        const song1 = await createSongWithThumbnail("Song A", "A", 1980);
+        const song2 = await createSongWithThumbnail("Song B", "B", 1990);
+
+        const playlistRes = await app.inject({
+            method: "POST",
+            url: "/api/admin/playlists",
+            headers: { authorization: `Bearer ${token}` },
+            payload: {
+                name: "Thumb Playlist",
+                songs: [song1._id, song2._id],
+            },
+        });
+
+        const sessionRes = await app.inject({
+            method: "POST",
+            url: "/api/game/sessions",
+            payload: {
+                playlistId: playlistRes.json()._id,
+                playerName: "Alice",
+            },
+        });
+        const code = sessionRes.json().code;
+
+        const placeRes = await app.inject({
+            method: "POST",
+            url: `/api/game/sessions/${code}/place`,
+            payload: { playerName: "Alice", position: 0 },
+        });
+
+        expect(placeRes.statusCode).toBe(200);
+        const result = placeRes.json();
+        expect(result.song.thumbnailFilename).toBeDefined();
+        expect(result.player.timeline[0].thumbnailFilename).toBeDefined();
+    });
+
+    it("results include thumbnailFilename in player timelines", async () => {
+        const song1 = await createSongWithThumbnail("Song A", "A", 1980);
+
+        const playlistRes = await app.inject({
+            method: "POST",
+            url: "/api/admin/playlists",
+            headers: { authorization: `Bearer ${token}` },
+            payload: {
+                name: "Thumb Playlist",
+                songs: [song1._id],
+            },
+        });
+
+        const sessionRes = await app.inject({
+            method: "POST",
+            url: "/api/game/sessions",
+            payload: {
+                playlistId: playlistRes.json()._id,
+                playerName: "Alice",
+                numberOfSongs: 1,
+            },
+        });
+        const code = sessionRes.json().code;
+
+        // Place song (game finishes with 1 song)
+        await app.inject({
+            method: "POST",
+            url: `/api/game/sessions/${code}/place`,
+            payload: { playerName: "Alice", position: 0 },
+        });
+
+        const resultsRes = await app.inject({
+            method: "GET",
+            url: `/api/game/sessions/${code}/results`,
+        });
+
+        expect(resultsRes.statusCode).toBe(200);
+        const results = resultsRes.json();
+        expect(results.players[0].timeline[0].thumbnailFilename).toBeDefined();
+    });
+
+    it("game playlists include thumbnailFilename and firstSongThumbnail", async () => {
+        const song1 = await createSongWithThumbnail("Song A", "A", 1980);
+
+        // Create playlist with its own thumbnail
+        const playlistRes = await app.inject({
+            method: "POST",
+            url: "/api/admin/playlists",
+            headers: { authorization: `Bearer ${token}` },
+            payload: {
+                name: "Thumb Playlist",
+                songs: [song1._id],
+            },
+        });
+        const playlist = playlistRes.json();
+
+        const fakeImage = Buffer.from("playlist-thumb");
+        const { body, contentType } = createMultipartPayload(
+            {},
+            {
+                fieldname: "thumbnail",
+                filename: "pl-cover.png",
+                content: fakeImage,
+                contentType: "image/png",
+            },
+        );
+        await app.inject({
+            method: "PUT",
+            url: `/api/admin/playlists/${playlist._id}/thumbnail`,
+            headers: {
+                authorization: `Bearer ${token}`,
+                "content-type": contentType,
+            },
+            payload: body,
+        });
+
+        const response = await app.inject({
+            method: "GET",
+            url: "/api/game/playlists",
+        });
+
+        expect(response.statusCode).toBe(200);
+        const playlists = response.json();
+        expect(playlists[0].thumbnailFilename).toBeDefined();
+        expect(playlists[0].firstSongThumbnail).toBeDefined();
+        expect(playlists[0].firstSongThumbnail).toMatch(/\.jpg$/);
     });
 });

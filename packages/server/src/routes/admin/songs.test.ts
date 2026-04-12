@@ -336,6 +336,202 @@ describe("admin songs API", () => {
         expect(response.statusCode).toBe(404);
     });
 
+    it("uploading song with audio auto-extracts thumbnail from album art", async () => {
+        const fakePng = Buffer.from([
+            0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+        ]);
+        const mp3 = buildId3TaggedMp3WithPicture(
+            { title: "Art Song", artist: "Art Artist", year: "2021" },
+            { mimeType: "image/png", data: fakePng },
+        );
+        const { body, contentType } = createMultipartPayload(
+            { title: "Art Song", artist: "Art Artist", year: "2021" },
+            {
+                fieldname: "audio",
+                filename: "art.mp3",
+                content: mp3,
+                contentType: "audio/mpeg",
+            },
+        );
+
+        const response = await app.inject({
+            method: "POST",
+            url: "/api/admin/songs/upload",
+            headers: {
+                authorization: `Bearer ${token}`,
+                "content-type": contentType,
+            },
+            payload: body,
+        });
+
+        expect(response.statusCode).toBe(201);
+        const song = response.json();
+        expect(song.audioFilename).toBeDefined();
+        expect(song.thumbnailFilename).toBeDefined();
+        expect(song.thumbnailFilename).toMatch(/\.png$/);
+
+        // Thumbnail is servable
+        const thumbRes = await app.inject({
+            method: "GET",
+            url: `/thumbnails/${song.thumbnailFilename}`,
+        });
+        expect(thumbRes.statusCode).toBe(200);
+    });
+
+    it("admin can manually upload a thumbnail for a song", async () => {
+        const createRes = await app.inject({
+            method: "POST",
+            url: "/api/admin/songs",
+            headers: { authorization: `Bearer ${token}` },
+            payload: { title: "Thumb Song", artist: "Artist", year: 2000 },
+        });
+        const song = createRes.json();
+
+        const fakeImage = Buffer.from("fake-image-content");
+        const { body, contentType } = createMultipartPayload(
+            {},
+            {
+                fieldname: "thumbnail",
+                filename: "cover.jpg",
+                content: fakeImage,
+                contentType: "image/jpeg",
+            },
+        );
+
+        const uploadRes = await app.inject({
+            method: "PUT",
+            url: `/api/admin/songs/${song._id}/thumbnail`,
+            headers: {
+                authorization: `Bearer ${token}`,
+                "content-type": contentType,
+            },
+            payload: body,
+        });
+
+        expect(uploadRes.statusCode).toBe(200);
+        const updated = uploadRes.json();
+        expect(updated.thumbnailFilename).toBeDefined();
+        expect(updated.thumbnailFilename).toMatch(/\.jpg$/);
+
+        // Thumbnail is servable
+        const thumbRes = await app.inject({
+            method: "GET",
+            url: `/thumbnails/${updated.thumbnailFilename}`,
+        });
+        expect(thumbRes.statusCode).toBe(200);
+        expect(thumbRes.body).toBe("fake-image-content");
+    });
+
+    it("replacing a song thumbnail deletes old thumbnail file", async () => {
+        const createRes = await app.inject({
+            method: "POST",
+            url: "/api/admin/songs",
+            headers: { authorization: `Bearer ${token}` },
+            payload: {
+                title: "Replace Thumb",
+                artist: "Artist",
+                year: 2000,
+            },
+        });
+        const song = createRes.json();
+
+        // First thumbnail
+        const first = createMultipartPayload(
+            {},
+            {
+                fieldname: "thumbnail",
+                filename: "first.jpg",
+                content: Buffer.from("first-image"),
+                contentType: "image/jpeg",
+            },
+        );
+        const firstRes = await app.inject({
+            method: "PUT",
+            url: `/api/admin/songs/${song._id}/thumbnail`,
+            headers: {
+                authorization: `Bearer ${token}`,
+                "content-type": first.contentType,
+            },
+            payload: first.body,
+        });
+        const oldFilename = firstRes.json().thumbnailFilename;
+
+        // Second thumbnail (replace)
+        const second = createMultipartPayload(
+            {},
+            {
+                fieldname: "thumbnail",
+                filename: "second.png",
+                content: Buffer.from("second-image"),
+                contentType: "image/png",
+            },
+        );
+        const secondRes = await app.inject({
+            method: "PUT",
+            url: `/api/admin/songs/${song._id}/thumbnail`,
+            headers: {
+                authorization: `Bearer ${token}`,
+                "content-type": second.contentType,
+            },
+            payload: second.body,
+        });
+
+        expect(secondRes.statusCode).toBe(200);
+        expect(secondRes.json().thumbnailFilename).not.toBe(oldFilename);
+
+        // Old thumbnail is gone
+        const oldRes = await app.inject({
+            method: "GET",
+            url: `/thumbnails/${oldFilename}`,
+        });
+        expect(oldRes.statusCode).toBe(404);
+    });
+
+    it("deleting a song also removes its thumbnail file", async () => {
+        const createRes = await app.inject({
+            method: "POST",
+            url: "/api/admin/songs",
+            headers: { authorization: `Bearer ${token}` },
+            payload: { title: "Del Thumb", artist: "Artist", year: 2000 },
+        });
+        const song = createRes.json();
+
+        // Upload thumbnail
+        const { body, contentType } = createMultipartPayload(
+            {},
+            {
+                fieldname: "thumbnail",
+                filename: "cover.jpg",
+                content: Buffer.from("thumb-data"),
+                contentType: "image/jpeg",
+            },
+        );
+        const thumbRes = await app.inject({
+            method: "PUT",
+            url: `/api/admin/songs/${song._id}/thumbnail`,
+            headers: {
+                authorization: `Bearer ${token}`,
+                "content-type": contentType,
+            },
+            payload: body,
+        });
+        const thumbFilename = thumbRes.json().thumbnailFilename;
+
+        // Delete song
+        await app.inject({
+            method: "DELETE",
+            url: `/api/admin/songs/${song._id}`,
+            headers: { authorization: `Bearer ${token}` },
+        });
+
+        // Thumbnail file is gone
+        const thumbCheckRes = await app.inject({
+            method: "GET",
+            url: `/thumbnails/${thumbFilename}`,
+        });
+        expect(thumbCheckRes.statusCode).toBe(404);
+    });
+
     it("deleting a song removes it from playlists", async () => {
         const song1 = await app.inject({
             method: "POST",
@@ -533,4 +729,96 @@ describe("extract-metadata endpoint", () => {
 
         expect(response.statusCode).toBe(400);
     });
+
+    it("extracts thumbnail from ID3 album art as base64 data URL", async () => {
+        const fakePng = Buffer.from([
+            0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+        ]);
+        const mp3 = buildId3TaggedMp3WithPicture(
+            { title: "Art Song", artist: "Art Artist", year: "2021" },
+            { mimeType: "image/png", data: fakePng },
+        );
+        const { body, contentType } = createMultipartPayload(
+            {},
+            {
+                fieldname: "audio",
+                filename: "art.mp3",
+                content: mp3,
+                contentType: "audio/mpeg",
+            },
+        );
+
+        const response = await app.inject({
+            method: "POST",
+            url: "/api/admin/songs/extract-metadata",
+            headers: {
+                authorization: `Bearer ${token}`,
+                "content-type": contentType,
+            },
+            payload: body,
+        });
+
+        expect(response.statusCode).toBe(200);
+        const metadata = response.json();
+        expect(metadata.title).toBe("Art Song");
+        expect(metadata.thumbnail).toMatch(/^data:image\/png;base64,/);
+    });
 });
+
+/**
+ * Build a minimal MP3 buffer with ID3v2.3 tags including an APIC (picture) frame.
+ */
+function buildId3TaggedMp3WithPicture(
+    tags: { title?: string; artist?: string; year?: string },
+    picture: { mimeType: string; data: Buffer },
+): Buffer {
+    const frames: Buffer[] = [];
+
+    function textFrame(id: string, text: string): Buffer {
+        const textBuf = Buffer.from(text, "latin1");
+        const size = 1 + textBuf.length;
+        const header = Buffer.alloc(10);
+        header.write(id, 0, 4, "ascii");
+        header.writeUInt32BE(size, 4);
+        return Buffer.concat([header, Buffer.from([0x00]), textBuf]);
+    }
+
+    if (tags.title) frames.push(textFrame("TIT2", tags.title));
+    if (tags.artist) frames.push(textFrame("TPE1", tags.artist));
+    if (tags.year) frames.push(textFrame("TDRC", tags.year));
+
+    // APIC frame: encoding(1) + mime(null-terminated) + pictureType(1) + description(null-terminated) + data
+    const mimeBuf = Buffer.from(`${picture.mimeType}\0`, "latin1");
+    const apicPayload = Buffer.concat([
+        Buffer.from([0x00]), // encoding: latin1
+        mimeBuf,
+        Buffer.from([0x03]), // picture type: cover front
+        Buffer.from([0x00]), // description: empty (null terminated)
+        picture.data,
+    ]);
+    const apicHeader = Buffer.alloc(10);
+    apicHeader.write("APIC", 0, 4, "ascii");
+    apicHeader.writeUInt32BE(apicPayload.length, 4);
+    frames.push(Buffer.concat([apicHeader, apicPayload]));
+
+    const framesBuffer = Buffer.concat(frames);
+
+    const id3Header = Buffer.alloc(10);
+    id3Header.write("ID3", 0, 3, "ascii");
+    id3Header[3] = 3;
+    id3Header[4] = 0;
+    id3Header[5] = 0;
+    const tagSize = framesBuffer.length;
+    id3Header[6] = (tagSize >> 21) & 0x7f;
+    id3Header[7] = (tagSize >> 14) & 0x7f;
+    id3Header[8] = (tagSize >> 7) & 0x7f;
+    id3Header[9] = tagSize & 0x7f;
+
+    const mpegFrame = Buffer.alloc(417, 0);
+    mpegFrame[0] = 0xff;
+    mpegFrame[1] = 0xfb;
+    mpegFrame[2] = 0x90;
+    mpegFrame[3] = 0x00;
+
+    return Buffer.concat([id3Header, framesBuffer, mpegFrame]);
+}

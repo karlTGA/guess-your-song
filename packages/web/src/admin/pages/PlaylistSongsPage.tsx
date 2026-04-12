@@ -1,14 +1,19 @@
-import { DeleteOutlined, PlusOutlined, ArrowLeftOutlined } from "@ant-design/icons";
+import {
+    ArrowLeftOutlined,
+    DeleteOutlined,
+    PlusOutlined,
+} from "@ant-design/icons";
 import {
     Button,
     Form,
     Modal,
+    message,
     Popconfirm,
     Select,
     Space,
     Table,
+    Tag,
     Typography,
-    message,
 } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -21,6 +26,8 @@ interface Song {
     title: string;
     artist: string;
     year: number;
+    audioFilename?: string;
+    thumbnailFilename?: string;
 }
 
 interface PlaylistDetail {
@@ -85,7 +92,9 @@ export default function PlaylistSongsPage() {
                 .filter((s) => !selectedIds.has(s._id))
                 .map((s) => s._id);
             await updatePlaylist(playlistId, { songs: remainingSongIds });
-            message.success(`${selectedRowKeys.length} songs removed from playlist`);
+            message.success(
+                `${selectedRowKeys.length} songs removed from playlist`,
+            );
             setSelectedRowKeys([]);
             loadPlaylist();
         } catch {
@@ -124,6 +133,40 @@ export default function PlaylistSongsPage() {
             render: (y: number) => String(y),
         },
         {
+            title: "Thumbnail",
+            key: "thumbnail",
+            render: (_: unknown, record: Song) =>
+                record.thumbnailFilename ? (
+                    <img
+                        src={`/thumbnails/${record.thumbnailFilename}`}
+                        alt={`${record.title} thumbnail`}
+                        style={{
+                            width: 48,
+                            height: 48,
+                            objectFit: "cover",
+                            borderRadius: 4,
+                        }}
+                    />
+                ) : (
+                    <Tag>No thumbnail</Tag>
+                ),
+        },
+        {
+            title: "Audio",
+            key: "audio",
+            render: (_: unknown, record: Song) =>
+                record.audioFilename ? (
+                    // biome-ignore lint/a11y/useMediaCaption: music preview player, no captions needed
+                    <audio
+                        controls
+                        preload="none"
+                        src={`/audio/${record.audioFilename}`}
+                    />
+                ) : (
+                    <Tag>No audio</Tag>
+                ),
+        },
+        {
             title: "Actions",
             key: "actions",
             render: (_: unknown, record: Song) => (
@@ -147,9 +190,7 @@ export default function PlaylistSongsPage() {
         },
     ];
 
-    const playlistSongIds = new Set(
-        playlist?.songs.map((s) => s._id) ?? [],
-    );
+    const playlistSongIds = new Set(playlist?.songs.map((s) => s._id) ?? []);
     const availableSongs = allSongs.filter((s) => !playlistSongIds.has(s._id));
 
     return (

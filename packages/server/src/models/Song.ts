@@ -5,6 +5,7 @@ export interface ISong extends Document {
     artist: string;
     year: number;
     audioFilename?: string;
+    thumbnailFilename?: string;
     duration?: number;
 }
 
@@ -14,6 +15,7 @@ const songSchema = new Schema<ISong>(
         artist: { type: String, required: true },
         year: { type: Number, required: true },
         audioFilename: { type: String },
+        thumbnailFilename: { type: String },
         duration: { type: Number },
     },
     { timestamps: true },

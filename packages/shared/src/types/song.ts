@@ -4,6 +4,7 @@ export interface Song {
     artist: string;
     year: number;
     audioFilename: string;
+    thumbnailFilename?: string;
     duration: number;
     createdAt: string;
 }
@@ -27,4 +28,5 @@ export interface ExtractedMetadata {
     artist?: string;
     year?: number;
     duration?: number;
+    thumbnail?: string;
 }

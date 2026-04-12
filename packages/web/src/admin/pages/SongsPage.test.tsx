@@ -136,6 +136,68 @@ describe("SongsPage", () => {
         expect(screen.getByText("No audio")).toBeInTheDocument();
     });
 
+    it("shows thumbnail image for songs with thumbnailFilename", async () => {
+        vi.spyOn(api, "getSongs").mockResolvedValue([
+            {
+                _id: "song1",
+                title: "Bohemian Rhapsody",
+                artist: "Queen",
+                year: 1975,
+                audioFilename: "abc.mp3",
+                thumbnailFilename: "thumb1.jpg",
+            },
+            {
+                _id: "song2",
+                title: "Billie Jean",
+                artist: "Michael Jackson",
+                year: 1982,
+                audioFilename: "def.mp3",
+                thumbnailFilename: "thumb2.jpg",
+            },
+        ]);
+        renderSongsPage();
+
+        await waitFor(() => {
+            expect(
+                screen.getAllByText("Bohemian Rhapsody").length,
+            ).toBeGreaterThan(0);
+        });
+
+        const thumbnails = screen.getAllByRole("img", {
+            name: /thumbnail/i,
+        });
+        expect(thumbnails.length).toBe(2);
+        expect(thumbnails[0]).toHaveAttribute("src", "/thumbnails/thumb1.jpg");
+        expect(thumbnails[1]).toHaveAttribute("src", "/thumbnails/thumb2.jpg");
+    });
+
+    it("admin can upload thumbnail for an existing song", async () => {
+        const uploadThumbnailSpy = vi.spyOn(api, "uploadSongThumbnail");
+        const user = userEvent.setup();
+        renderSongsPage();
+
+        await waitFor(() => {
+            expect(
+                screen.getAllByText("Bohemian Rhapsody").length,
+            ).toBeGreaterThan(0);
+        });
+
+        const uploadButtons = screen.getAllByRole("button", {
+            name: /upload thumbnail/i,
+        });
+        expect(uploadButtons.length).toBeGreaterThan(0);
+
+        const file = new File(["img-data"], "cover.jpg", {
+            type: "image/jpeg",
+        });
+        const fileInputs = screen.getAllByTestId("thumbnail-upload-input");
+        await user.upload(fileInputs[0], file);
+
+        await waitFor(() => {
+            expect(uploadThumbnailSpy).toHaveBeenCalledWith("song1", file);
+        });
+    });
+
     it("admin can upload audio for an existing song", async () => {
         const uploadAudioSpy = vi.spyOn(api, "uploadAudioForSong");
         const user = userEvent.setup();
@@ -231,6 +293,36 @@ describe("SongsPage batch upload modal", () => {
 
         const reviewRows = within(modal).getAllByTestId("batch-row");
         expect(reviewRows).toHaveLength(2);
+    });
+
+    it("shows extracted thumbnail preview in batch rows", async () => {
+        vi.spyOn(api, "extractMetadata").mockResolvedValueOnce({
+            title: "Song With Cover",
+            artist: "Artist",
+            year: 2020,
+            thumbnail: "data:image/jpeg;base64,/9j/mock",
+        });
+        const { modal } = await openAddSongModal();
+
+        const dropZone = within(modal).getByTestId("drop-zone");
+        const files = [
+            new File(["audio1"], "song1.mp3", { type: "audio/mpeg" }),
+        ];
+
+        fireEvent.drop(dropZone, createDropEvent(files));
+
+        await waitFor(() => {
+            expect(within(modal).getAllByTestId("batch-row")).toHaveLength(1);
+        });
+
+        const row = within(modal).getByTestId("batch-row");
+        const thumbnail = within(row).getByRole("img", {
+            name: /thumbnail preview/i,
+        });
+        expect(thumbnail).toHaveAttribute(
+            "src",
+            "data:image/jpeg;base64,/9j/mock",
+        );
     });
 
     it("extracted metadata populates editable fields", async () => {

@@ -19,6 +19,8 @@ interface Playlist {
     name: string;
     description?: string;
     songCount: number;
+    thumbnailFilename?: string;
+    firstSongThumbnail?: string;
 }
 
 export default function StartGamePage() {
@@ -96,25 +98,48 @@ export default function StartGamePage() {
                 )}
                 <List
                     dataSource={playlists}
-                    renderItem={(playlist) => (
-                        <List.Item
-                            onClick={() => handleSelectPlaylist(playlist._id)}
-                            style={{
-                                cursor: "pointer",
-                                background:
-                                    selectedPlaylist === playlist._id
-                                        ? "#e6f4ff"
-                                        : undefined,
-                                padding: "8px 12px",
-                                borderRadius: 4,
-                            }}
-                        >
-                            <List.Item.Meta
-                                title={playlist.name}
-                                description={`${playlist.songCount} songs${playlist.description ? ` — ${playlist.description}` : ""}`}
-                            />
-                        </List.Item>
-                    )}
+                    renderItem={(playlist) => {
+                        const thumbSrc = playlist.thumbnailFilename
+                            ? `/thumbnails/${playlist.thumbnailFilename}`
+                            : playlist.firstSongThumbnail
+                              ? `/thumbnails/${playlist.firstSongThumbnail}`
+                              : undefined;
+                        return (
+                            <List.Item
+                                onClick={() =>
+                                    handleSelectPlaylist(playlist._id)
+                                }
+                                style={{
+                                    cursor: "pointer",
+                                    background:
+                                        selectedPlaylist === playlist._id
+                                            ? "#e6f4ff"
+                                            : undefined,
+                                    padding: "8px 12px",
+                                    borderRadius: 4,
+                                }}
+                            >
+                                <List.Item.Meta
+                                    avatar={
+                                        thumbSrc ? (
+                                            <img
+                                                src={thumbSrc}
+                                                alt={`${playlist.name} thumbnail`}
+                                                style={{
+                                                    width: 48,
+                                                    height: 48,
+                                                    objectFit: "cover",
+                                                    borderRadius: 4,
+                                                }}
+                                            />
+                                        ) : undefined
+                                    }
+                                    title={playlist.name}
+                                    description={`${playlist.songCount} songs${playlist.description ? ` — ${playlist.description}` : ""}`}
+                                />
+                            </List.Item>
+                        );
+                    }}
                     style={{ marginBottom: 16 }}
                 />
                 <Form onFinish={handleStart} layout="vertical">

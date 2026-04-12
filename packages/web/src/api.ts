@@ -60,6 +60,7 @@ export function getSongs() {
             artist: string;
             year: number;
             audioFilename?: string;
+            thumbnailFilename?: string;
         }[]
     >("/admin/songs");
 }
@@ -125,6 +126,18 @@ export function uploadAudioForSong(id: string, file: File) {
     }>(`/admin/songs/${id}/audio`, { method: "PUT", body: formData });
 }
 
+export function uploadSongThumbnail(id: string, file: File) {
+    const formData = new FormData();
+    formData.append("thumbnail", file);
+    return request<{
+        _id: string;
+        title: string;
+        artist: string;
+        year: number;
+        thumbnailFilename: string;
+    }>(`/admin/songs/${id}/thumbnail`, { method: "PUT", body: formData });
+}
+
 export function extractMetadata(file: File) {
     const formData = new FormData();
     formData.append("audio", file);
@@ -137,7 +150,13 @@ export function extractMetadata(file: File) {
 // Playlists
 export function getPlaylists() {
     return request<
-        { _id: string; name: string; description?: string; songs: string[] }[]
+        {
+            _id: string;
+            name: string;
+            description?: string;
+            thumbnailFilename?: string;
+            songs: string[];
+        }[]
     >("/admin/playlists");
 }
 
@@ -146,7 +165,15 @@ export function getPlaylist(id: string) {
         _id: string;
         name: string;
         description?: string;
-        songs: { _id: string; title: string; artist: string; year: number }[];
+        thumbnailFilename?: string;
+        songs: {
+            _id: string;
+            title: string;
+            artist: string;
+            year: number;
+            audioFilename?: string;
+            thumbnailFilename?: string;
+        }[];
     }>(`/admin/playlists/${id}`);
 }
 
@@ -173,6 +200,16 @@ export function updatePlaylist(
 
 export function deletePlaylist(id: string) {
     return request<void>(`/admin/playlists/${id}`, { method: "DELETE" });
+}
+
+export function uploadPlaylistThumbnail(id: string, file: File) {
+    const formData = new FormData();
+    formData.append("thumbnail", file);
+    return request<{
+        _id: string;
+        name: string;
+        thumbnailFilename: string;
+    }>(`/admin/playlists/${id}/thumbnail`, { method: "PUT", body: formData });
 }
 
 // Sessions
@@ -221,6 +258,8 @@ export function getGamePlaylists() {
             name: string;
             description?: string;
             songCount: number;
+            thumbnailFilename?: string;
+            firstSongThumbnail?: string;
         }[]
     >("/game/playlists");
 }
@@ -266,6 +305,7 @@ export function getGameState(code: string, playerName: string) {
         currentRound?: {
             songId: string;
             audioFilename: string;
+            thumbnailFilename?: string;
             startedAt: string;
         };
         player: {
@@ -275,6 +315,7 @@ export function getGameState(code: string, playerName: string) {
                 title: string;
                 artist: string;
                 year: number;
+                thumbnailFilename?: string;
             }[];
             score: number;
         };
@@ -289,7 +330,13 @@ export function placeSong(code: string, playerName: string, position: number) {
     return request<{
         correct: boolean;
         status: string;
-        song: { _id: string; title: string; artist: string; year: number };
+        song: {
+            _id: string;
+            title: string;
+            artist: string;
+            year: number;
+            thumbnailFilename?: string;
+        };
         player: {
             name: string;
             timeline: {
@@ -297,6 +344,7 @@ export function placeSong(code: string, playerName: string, position: number) {
                 title: string;
                 artist: string;
                 year: number;
+                thumbnailFilename?: string;
             }[];
             score: number;
         };
@@ -336,6 +384,7 @@ export function getResults(code: string) {
                 title: string;
                 artist: string;
                 year: number;
+                thumbnailFilename?: string;
             }[];
         }[];
     }>(`/game/sessions/${code}/results`);

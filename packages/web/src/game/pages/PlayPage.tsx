@@ -10,11 +10,17 @@ interface SongInfo {
     title: string;
     artist: string;
     year: number;
+    thumbnailFilename?: string;
 }
 
 interface GameState {
     status: string;
-    currentRound?: { songId: string; audioFilename: string; startedAt: string };
+    currentRound?: {
+        songId: string;
+        audioFilename: string;
+        thumbnailFilename?: string;
+        startedAt: string;
+    };
     player: { name: string; timeline: SongInfo[]; score: number };
     totalRounds: number;
     currentRoundIndex: number;
@@ -186,8 +192,30 @@ export default function PlayPage() {
                                         size="small"
                                         style={{ marginBottom: 4 }}
                                     >
-                                        <Text strong>{song.title}</Text> —{" "}
-                                        {song.artist} ({song.year})
+                                        <div
+                                            style={{
+                                                display: "flex",
+                                                alignItems: "center",
+                                                gap: 8,
+                                            }}
+                                        >
+                                            {song.thumbnailFilename && (
+                                                <img
+                                                    src={`/thumbnails/${song.thumbnailFilename}`}
+                                                    alt={`${song.title} thumbnail`}
+                                                    style={{
+                                                        width: 40,
+                                                        height: 40,
+                                                        objectFit: "cover",
+                                                        borderRadius: 4,
+                                                    }}
+                                                />
+                                            )}
+                                            <span>
+                                                <Text strong>{song.title}</Text>{" "}
+                                                — {song.artist} ({song.year})
+                                            </span>
+                                        </div>
                                     </Card>
                                     <Button
                                         size="small"

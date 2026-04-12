@@ -76,6 +76,20 @@ describe("PlaylistSongsPage", () => {
         expect(screen.getByText("1982")).toBeInTheDocument();
     });
 
+    it("shows audio player for songs with audio", async () => {
+        renderWithRouter("/admin/playlists/pl1/songs");
+
+        await waitFor(() => {
+            expect(screen.getByText("Bohemian Rhapsody")).toBeInTheDocument();
+        });
+
+        // Both mock songs have audioFilename, so should show audio players
+        const audioElements = document.querySelectorAll("audio");
+        expect(audioElements).toHaveLength(2);
+        expect(audioElements[0].getAttribute("src")).toBe("/audio/abc.mp3");
+        expect(audioElements[1].getAttribute("src")).toBe("/audio/def.mp3");
+    });
+
     it("admin can remove a song from the playlist", async () => {
         const updateSpy = vi.spyOn(api, "updatePlaylist");
         const user = userEvent.setup();
@@ -143,9 +157,7 @@ describe("PlaylistSongsPage", () => {
         });
 
         // Click "Add Song" button
-        await user.click(
-            screen.getByRole("button", { name: /add song/i }),
-        );
+        await user.click(screen.getByRole("button", { name: /add song/i }));
 
         // A select should appear with songs not yet in the playlist
         await waitFor(() => {
@@ -228,5 +240,20 @@ describe("PlaylistSongsPage", () => {
                 songs: [],
             });
         });
+    });
+
+    it("shows thumbnail images for songs with thumbnailFilename", async () => {
+        renderWithRouter("/admin/playlists/pl1/songs");
+
+        await waitFor(() => {
+            expect(screen.getByText("Bohemian Rhapsody")).toBeInTheDocument();
+        });
+
+        const thumbnails = screen.getAllByRole("img", {
+            name: /thumbnail/i,
+        });
+        expect(thumbnails.length).toBe(2);
+        expect(thumbnails[0]).toHaveAttribute("src", "/thumbnails/thumb1.jpg");
+        expect(thumbnails[1]).toHaveAttribute("src", "/thumbnails/thumb2.jpg");
     });
 });

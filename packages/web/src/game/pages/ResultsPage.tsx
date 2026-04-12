@@ -11,6 +11,7 @@ interface SongInfo {
     title: string;
     artist: string;
     year: number;
+    thumbnailFilename?: string;
 }
 
 interface PlayerResult {
@@ -61,10 +62,32 @@ export default function ResultsPage() {
                             dataSource={player.timeline}
                             renderItem={(song) => (
                                 <List.Item>
-                                    <Text>{song.title}</Text> —{" "}
-                                    <Text type="secondary">
-                                        {song.artist} ({song.year})
-                                    </Text>
+                                    <div
+                                        style={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: 8,
+                                        }}
+                                    >
+                                        {song.thumbnailFilename && (
+                                            <img
+                                                src={`/thumbnails/${song.thumbnailFilename}`}
+                                                alt={`${song.title} thumbnail`}
+                                                style={{
+                                                    width: 36,
+                                                    height: 36,
+                                                    objectFit: "cover",
+                                                    borderRadius: 4,
+                                                }}
+                                            />
+                                        )}
+                                        <span>
+                                            <Text>{song.title}</Text> —{" "}
+                                            <Text type="secondary">
+                                                {song.artist} ({song.year})
+                                            </Text>
+                                        </span>
+                                    </div>
                                 </List.Item>
                             )}
                         />

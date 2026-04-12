@@ -21,13 +21,21 @@ async function generateUniqueCode(): Promise<string> {
 
 export async function gameRoutes(app: FastifyInstance) {
     app.get("/api/game/playlists", async (_request, reply) => {
-        const playlists = await PlaylistModel.find();
-        const result = playlists.map((p) => ({
-            _id: p._id,
-            name: p.name,
-            description: p.description,
-            songCount: p.songs.length,
-        }));
+        const playlists = await PlaylistModel.find().populate("songs");
+        const result = playlists.map((p) => {
+            const songs = p.songs as unknown as {
+                thumbnailFilename?: string;
+            }[];
+            return {
+                _id: p._id,
+                name: p.name,
+                description: p.description,
+                songCount: p.songs.length,
+                thumbnailFilename: p.thumbnailFilename,
+                firstSongThumbnail:
+                    songs.length > 0 ? songs[0].thumbnailFilename : undefined,
+            };
+        });
         return reply.send(result);
     });
 
@@ -159,6 +167,7 @@ export async function gameRoutes(app: FastifyInstance) {
             currentRoundData = {
                 songId: currentRound.songId,
                 audioFilename: roundSong?.audioFilename ?? "",
+                thumbnailFilename: roundSong?.thumbnailFilename,
                 startedAt: currentRound.startedAt?.toISOString(),
             };
         }
@@ -172,6 +181,7 @@ export async function gameRoutes(app: FastifyInstance) {
                     title: song?.title ?? "",
                     artist: song?.artist ?? "",
                     year: song?.year ?? 0,
+                    thumbnailFilename: song?.thumbnailFilename,
                 };
             }),
         );
@@ -281,6 +291,7 @@ export async function gameRoutes(app: FastifyInstance) {
                     title: song?.title ?? "",
                     artist: song?.artist ?? "",
                     year: song?.year ?? 0,
+                    thumbnailFilename: song?.thumbnailFilename,
                 };
             }),
         );
@@ -293,6 +304,7 @@ export async function gameRoutes(app: FastifyInstance) {
                 title: currentSong.title,
                 artist: currentSong.artist,
                 year: currentSong.year,
+                thumbnailFilename: currentSong.thumbnailFilename,
             },
             player: {
                 name: player.name,
@@ -353,6 +365,7 @@ export async function gameRoutes(app: FastifyInstance) {
                     title: song?.title ?? "",
                     artist: song?.artist ?? "",
                     year: song?.year ?? 0,
+                    thumbnailFilename: song?.thumbnailFilename,
                 };
             }),
         );
@@ -385,6 +398,7 @@ export async function gameRoutes(app: FastifyInstance) {
                             title: song?.title ?? "",
                             artist: song?.artist ?? "",
                             year: song?.year ?? 0,
+                            thumbnailFilename: song?.thumbnailFilename,
                         };
                     }),
                 );

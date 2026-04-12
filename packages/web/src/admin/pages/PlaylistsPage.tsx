@@ -1,4 +1,9 @@
-import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
+import {
+    DeleteOutlined,
+    EditOutlined,
+    PlusOutlined,
+    UploadOutlined,
+} from "@ant-design/icons";
 import {
     Button,
     Form,
@@ -9,15 +14,17 @@ import {
     Select,
     Space,
     Table,
+    Tag,
     Typography,
 } from "antd";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
     createPlaylist,
     deletePlaylist,
     getPlaylists,
     getSongs,
+    uploadPlaylistThumbnail,
 } from "../../api";
 
 const { Title } = Typography;
@@ -33,6 +40,7 @@ interface Playlist {
     _id: string;
     name: string;
     description?: string;
+    thumbnailFilename?: string;
     songs: string[];
 }
 
@@ -43,6 +51,7 @@ export default function PlaylistsPage() {
     const [modalOpen, setModalOpen] = useState(false);
     const [form] = Form.useForm();
     const navigate = useNavigate();
+    const thumbnailRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
     const loadPlaylists = useCallback(async () => {
         setLoading(true);
@@ -96,6 +105,16 @@ export default function PlaylistsPage() {
         }
     };
 
+    const handleUploadThumbnail = async (id: string, file: File) => {
+        try {
+            await uploadPlaylistThumbnail(id, file);
+            message.success("Thumbnail uploaded");
+            loadPlaylists();
+        } catch {
+            message.error("Failed to upload thumbnail");
+        }
+    };
+
     const openManageSongs = (playlist: Playlist) => {
         navigate(`/admin/playlists/${playlist._id}/songs`);
     };
@@ -103,6 +122,25 @@ export default function PlaylistsPage() {
     const columns = [
         { title: "Name", dataIndex: "name", key: "name" },
         { title: "Description", dataIndex: "description", key: "description" },
+        {
+            title: "Thumbnail",
+            key: "thumbnail",
+            render: (_: unknown, record: Playlist) =>
+                record.thumbnailFilename ? (
+                    <img
+                        src={`/thumbnails/${record.thumbnailFilename}`}
+                        alt={`${record.name} thumbnail`}
+                        style={{
+                            width: 48,
+                            height: 48,
+                            objectFit: "cover",
+                            borderRadius: 4,
+                        }}
+                    />
+                ) : (
+                    <Tag>No thumbnail</Tag>
+                ),
+        },
         {
             title: "Songs",
             key: "songCount",
@@ -114,6 +152,30 @@ export default function PlaylistsPage() {
             key: "actions",
             render: (_: unknown, record: Playlist) => (
                 <Space>
+                    <Button
+                        icon={<UploadOutlined />}
+                        aria-label="Upload Thumbnail"
+                        onClick={() =>
+                            thumbnailRefs.current[record._id]?.click()
+                        }
+                    >
+                        Upload Thumbnail
+                    </Button>
+                    <input
+                        type="file"
+                        accept="image/*"
+                        data-testid="thumbnail-upload-input"
+                        ref={(el) => {
+                            thumbnailRefs.current[record._id] = el;
+                        }}
+                        style={{ display: "none" }}
+                        onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                                handleUploadThumbnail(record._id, file);
+                            }
+                        }}
+                    />
                     <Button
                         icon={<EditOutlined />}
                         onClick={() => openManageSongs(record)}

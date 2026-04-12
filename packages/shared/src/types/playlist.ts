@@ -2,6 +2,7 @@ export interface Playlist {
     _id: string;
     name: string;
     description: string;
+    thumbnailFilename?: string;
     songs: string[];
     createdAt: string;
 }
