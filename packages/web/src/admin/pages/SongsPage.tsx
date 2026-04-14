@@ -26,6 +26,7 @@ import {
     createPlaylist,
     deleteSong,
     extractMetadata,
+    fetchCoverArt,
     getPlaylists,
     getSongs,
     searchMusic,
@@ -85,7 +86,11 @@ export default function SongsPage() {
     } | null>(null);
     const [editValue, setEditValue] = useState<string | number>("");
     const [searchModalSong, setSearchModalSong] = useState<Song | null>(null);
+    const [searchMode, setSearchMode] = useState<"free" | "structured">("free");
     const [searchQuery, setSearchQuery] = useState("");
+    const [searchTitle, setSearchTitle] = useState("");
+    const [searchArtist, setSearchArtist] = useState("");
+    const [searchYear, setSearchYear] = useState("");
     const [searchResults, setSearchResults] = useState<MusicSearchResult[]>([]);
     const [searchLoading, setSearchLoading] = useState(false);
 
@@ -180,14 +185,36 @@ export default function SongsPage() {
     const handleOpenSearch = (song: Song) => {
         setSearchModalSong(song);
         setSearchQuery(`${song.artist} ${song.title}`);
+        setSearchTitle(song.title);
+        setSearchArtist(song.artist);
+        setSearchYear(String(song.year));
         setSearchResults([]);
+        setSearchMode("free");
+    };
+
+    const buildStructuredQuery = () => {
+        const parts: string[] = [];
+        if (searchTitle.trim()) {
+            parts.push(`recording:"${searchTitle.trim()}"`);
+        }
+        if (searchArtist.trim()) {
+            parts.push(`artist:"${searchArtist.trim()}"`);
+        }
+        if (searchYear.trim()) {
+            parts.push(`date:${searchYear.trim()}`);
+        }
+        return parts.join(" AND ");
     };
 
     const handleSearch = async () => {
-        if (!searchQuery.trim()) return;
+        const query =
+            searchMode === "structured"
+                ? buildStructuredQuery()
+                : searchQuery.trim();
+        if (!query) return;
         setSearchLoading(true);
         try {
-            const results = await searchMusic(searchQuery);
+            const results = await searchMusic(query);
             setSearchResults(results);
         } catch {
             message.error("Search failed");
@@ -204,6 +231,13 @@ export default function SongsPage() {
                 artist: result.artist,
                 year: result.year,
             });
+            if (result.releaseId) {
+                try {
+                    await fetchCoverArt(searchModalSong._id, result.releaseId);
+                } catch {
+                    // Cover art is optional — don't block the update
+                }
+            }
             message.success("Song updated");
             setSearchModalSong(null);
             loadSongs();
@@ -808,15 +842,70 @@ export default function SongsPage() {
                 width={720}
                 footer={null}
             >
-                <Input.Search
-                    placeholder="Search MusicBrainz..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onSearch={handleSearch}
-                    loading={searchLoading}
-                    enterButton
-                    style={{ marginBottom: 16 }}
-                />
+                <Radio.Group
+                    value={searchMode}
+                    onChange={(e) => setSearchMode(e.target.value)}
+                    style={{ marginBottom: 12 }}
+                    optionType="button"
+                    buttonStyle="solid"
+                >
+                    <Radio value="free">Free text</Radio>
+                    <Radio value="structured">Structured</Radio>
+                </Radio.Group>
+
+                {searchMode === "free" ? (
+                    <Input.Search
+                        placeholder="Search MusicBrainz..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onSearch={handleSearch}
+                        loading={searchLoading}
+                        enterButton
+                        style={{ marginBottom: 16 }}
+                    />
+                ) : (
+                    <div style={{ marginBottom: 16 }}>
+                        <Space.Compact
+                            style={{ width: "100%", marginBottom: 8 }}
+                        >
+                            <Input
+                                aria-label="Title"
+                                placeholder="Title"
+                                value={searchTitle}
+                                onChange={(e) => setSearchTitle(e.target.value)}
+                                onPressEnter={handleSearch}
+                                style={{ flex: 2 }}
+                            />
+                            <Input
+                                aria-label="Artist"
+                                placeholder="Artist"
+                                value={searchArtist}
+                                onChange={(e) =>
+                                    setSearchArtist(e.target.value)
+                                }
+                                onPressEnter={handleSearch}
+                                style={{ flex: 2 }}
+                            />
+                            <Input
+                                aria-label="Year"
+                                placeholder="Year"
+                                value={searchYear}
+                                onChange={(e) => setSearchYear(e.target.value)}
+                                onPressEnter={handleSearch}
+                                style={{ flex: 1 }}
+                            />
+                        </Space.Compact>
+                        <Button
+                            type="primary"
+                            icon={<SearchOutlined />}
+                            onClick={handleSearch}
+                            loading={searchLoading}
+                            aria-label="Search"
+                        >
+                            Search
+                        </Button>
+                    </div>
+                )}
                 {searchResults.length > 0 && (
                     <Table
                         dataSource={searchResults}
@@ -824,6 +913,32 @@ export default function SongsPage() {
                         size="small"
                         pagination={false}
                         columns={[
+                            {
+                                title: "Cover",
+                                key: "cover",
+                                width: 56,
+                                render: (
+                                    _: unknown,
+                                    result: MusicSearchResult,
+                                ) =>
+                                    result.releaseId ? (
+                                        <img
+                                            src={`https://coverartarchive.org/release/${result.releaseId}/front-250`}
+                                            alt="Cover art"
+                                            style={{
+                                                width: 40,
+                                                height: 40,
+                                                objectFit: "cover",
+                                                borderRadius: 4,
+                                            }}
+                                            onError={(e) => {
+                                                (
+                                                    e.target as HTMLImageElement
+                                                ).style.display = "none";
+                                            }}
+                                        />
+                                    ) : null,
+                            },
                             {
                                 title: "Title",
                                 dataIndex: "title",

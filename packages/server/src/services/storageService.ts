@@ -16,6 +16,7 @@ export class StorageService {
         const ext = path.extname(originalFilename);
         const uniqueName = `${crypto.randomUUID()}${ext}`;
         const filePath = path.join(this.uploadDir, uniqueName);
+        await fs.promises.mkdir(this.uploadDir, { recursive: true });
         await fs.promises.writeFile(filePath, data);
         return uniqueName;
     }

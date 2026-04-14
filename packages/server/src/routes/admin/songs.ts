@@ -276,7 +276,7 @@ export async function songRoutes(app: FastifyInstance) {
                 score: number;
                 "artist-credit"?: Array<{ name: string }>;
                 "first-release-date"?: string;
-                releases?: Array<{ title: string }>;
+                releases?: Array<{ id: string; title: string }>;
             }>;
         };
 
@@ -291,10 +291,58 @@ export async function songRoutes(app: FastifyInstance) {
                       undefined
                     : undefined,
                 album: rec.releases?.[0]?.title,
+                releaseId: rec.releases?.[0]?.id,
                 score: rec.score,
             }),
         );
 
         return reply.send(results);
+    });
+
+    app.post("/api/admin/songs/:id/cover-art", async (request, reply) => {
+        const { id } = request.params as { id: string };
+        const { releaseId } = request.body as { releaseId?: string };
+
+        if (!releaseId?.trim()) {
+            return reply.status(400).send({ error: "releaseId is required" });
+        }
+
+        const song = await SongModel.findById(id);
+        if (!song) {
+            return reply.status(404).send({ error: "Song not found" });
+        }
+
+        const url = `https://coverartarchive.org/release/${releaseId}/front`;
+        const response = await fetch(url, {
+            headers: {
+                "User-Agent": "GuessYourSong/1.0 (music-guessing-game)",
+            },
+        });
+
+        if (!response.ok) {
+            return reply
+                .status(502)
+                .send({ error: "Failed to fetch cover art" });
+        }
+
+        const contentType =
+            response.headers.get("content-type") ?? "image/jpeg";
+        const ext = contentType.split("/")[1]?.replace("jpeg", "jpg") || "jpg";
+        const arrayBuffer = await response.arrayBuffer();
+        const imageBuffer = Buffer.from(arrayBuffer);
+
+        if (song.thumbnailFilename) {
+            await app.thumbnailStorageService.delete(song.thumbnailFilename);
+        }
+
+        const thumbnailFilename = await app.thumbnailStorageService.save(
+            imageBuffer,
+            `cover.${ext}`,
+        );
+
+        song.thumbnailFilename = thumbnailFilename;
+        await song.save();
+
+        return reply.send(song);
     });
 }

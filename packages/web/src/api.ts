@@ -156,6 +156,19 @@ export function searchMusic(query: string) {
     );
 }
 
+export function fetchCoverArt(songId: string, releaseId: string) {
+    return request<{
+        _id: string;
+        title: string;
+        artist: string;
+        year: number;
+        thumbnailFilename: string;
+    }>(`/admin/songs/${songId}/cover-art`, {
+        method: "POST",
+        body: JSON.stringify({ releaseId }),
+    });
+}
+
 // Playlists
 export function getPlaylists() {
     return request<

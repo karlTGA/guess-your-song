@@ -429,6 +429,44 @@ describe("admin songs API", () => {
         expect(thumbRes.statusCode).toBe(200);
     });
 
+    it("extracts thumbnail even if thumbnails directory was removed", async () => {
+        // Simulate the thumbnails directory being deleted while server runs
+        const thumbnailDir = `${TEST_UPLOAD_DIR}/thumbnails`;
+        fs.rmSync(thumbnailDir, { recursive: true });
+
+        const fakePng = Buffer.from([
+            0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+        ]);
+        const mp3 = buildId3TaggedMp3WithPicture(
+            { title: "Recovery", artist: "Test Artist", year: "2021" },
+            { mimeType: "image/png", data: fakePng },
+        );
+        const { body, contentType } = createMultipartPayload(
+            { title: "Recovery", artist: "Test Artist", year: "2021" },
+            {
+                fieldname: "audio",
+                filename: "recovery.mp3",
+                content: mp3,
+                contentType: "audio/mpeg",
+            },
+        );
+
+        const response = await app.inject({
+            method: "POST",
+            url: "/api/admin/songs/upload",
+            headers: {
+                authorization: `Bearer ${token}`,
+                "content-type": contentType,
+            },
+            payload: body,
+        });
+
+        expect(response.statusCode).toBe(201);
+        const song = response.json();
+        expect(song.thumbnailFilename).toBeDefined();
+        expect(song.thumbnailFilename).toMatch(/\.png$/);
+    });
+
     it("admin can manually upload a thumbnail for a song", async () => {
         const createRes = await app.inject({
             method: "POST",
@@ -902,7 +940,12 @@ describe("search-music endpoint", () => {
                         score: 100,
                         "artist-credit": [{ name: "Queen" }],
                         "first-release-date": "1975-10-31",
-                        releases: [{ title: "A Night at the Opera" }],
+                        releases: [
+                            {
+                                id: "rel-1",
+                                title: "A Night at the Opera",
+                            },
+                        ],
                     },
                     {
                         id: "rec-2",
@@ -931,6 +974,7 @@ describe("search-music endpoint", () => {
             artist: "Queen",
             year: 1975,
             album: "A Night at the Opera",
+            releaseId: "rel-1",
             score: 100,
         });
         expect(results[1]).toEqual({
@@ -939,6 +983,7 @@ describe("search-music endpoint", () => {
             artist: "The Muppets",
             year: 2018,
             album: undefined,
+            releaseId: undefined,
             score: 85,
         });
 
@@ -972,6 +1017,188 @@ describe("search-music endpoint", () => {
             method: "GET",
             url: "/api/admin/songs/search-music?query=test",
             headers: { authorization: `Bearer ${token}` },
+        });
+
+        expect(response.statusCode).toBe(502);
+    });
+});
+
+describe("cover-art endpoint", () => {
+    let app: FastifyInstance;
+    let token: string;
+
+    beforeEach(async () => {
+        app = await buildTestApp({ uploadDir: TEST_UPLOAD_DIR });
+        token = await registerAndLogin(app);
+    });
+
+    afterEach(async () => {
+        vi.restoreAllMocks();
+        await app.close();
+        if (fs.existsSync(TEST_UPLOAD_DIR)) {
+            fs.rmSync(TEST_UPLOAD_DIR, { recursive: true });
+        }
+    });
+
+    it("fetches cover art from Cover Art Archive and saves as thumbnail", async () => {
+        const createRes = await app.inject({
+            method: "POST",
+            url: "/api/admin/songs",
+            headers: { authorization: `Bearer ${token}` },
+            payload: { title: "Test Song", artist: "Test Artist", year: 2020 },
+        });
+        const song = createRes.json();
+        expect(song.thumbnailFilename).toBeUndefined();
+
+        const fakeImageData = Buffer.from("fake-cover-art-jpeg-data");
+        vi.spyOn(globalThis, "fetch").mockResolvedValue({
+            ok: true,
+            headers: new Headers({ "content-type": "image/jpeg" }),
+            arrayBuffer: async () =>
+                fakeImageData.buffer.slice(
+                    fakeImageData.byteOffset,
+                    fakeImageData.byteOffset + fakeImageData.byteLength,
+                ),
+        } as Response);
+
+        const response = await app.inject({
+            method: "POST",
+            url: `/api/admin/songs/${song._id}/cover-art`,
+            headers: { authorization: `Bearer ${token}` },
+            payload: { releaseId: "rel-123" },
+        });
+
+        expect(response.statusCode).toBe(200);
+        const updated = response.json();
+        expect(updated.thumbnailFilename).toBeDefined();
+        expect(updated.thumbnailFilename).toMatch(/\.jpg$/);
+
+        expect(globalThis.fetch).toHaveBeenCalledWith(
+            "https://coverartarchive.org/release/rel-123/front",
+            expect.objectContaining({
+                headers: expect.objectContaining({
+                    "User-Agent": expect.any(String),
+                }),
+            }),
+        );
+
+        // Thumbnail is servable
+        const thumbRes = await app.inject({
+            method: "GET",
+            url: `/thumbnails/${updated.thumbnailFilename}`,
+        });
+        expect(thumbRes.statusCode).toBe(200);
+    });
+
+    it("replaces existing thumbnail when fetching cover art", async () => {
+        const createRes = await app.inject({
+            method: "POST",
+            url: "/api/admin/songs",
+            headers: { authorization: `Bearer ${token}` },
+            payload: { title: "Test Song", artist: "Test Artist", year: 2020 },
+        });
+        const song = createRes.json();
+
+        // Upload initial thumbnail
+        const { body, contentType } = createMultipartPayload(
+            {},
+            {
+                fieldname: "thumbnail",
+                filename: "old-cover.jpg",
+                content: Buffer.from("old-thumb"),
+                contentType: "image/jpeg",
+            },
+        );
+        const thumbRes = await app.inject({
+            method: "PUT",
+            url: `/api/admin/songs/${song._id}/thumbnail`,
+            headers: {
+                authorization: `Bearer ${token}`,
+                "content-type": contentType,
+            },
+            payload: body,
+        });
+        const oldFilename = thumbRes.json().thumbnailFilename;
+
+        const fakeImageData = Buffer.from("new-cover-art-data");
+        vi.spyOn(globalThis, "fetch").mockResolvedValue({
+            ok: true,
+            headers: new Headers({ "content-type": "image/png" }),
+            arrayBuffer: async () =>
+                fakeImageData.buffer.slice(
+                    fakeImageData.byteOffset,
+                    fakeImageData.byteOffset + fakeImageData.byteLength,
+                ),
+        } as Response);
+
+        const response = await app.inject({
+            method: "POST",
+            url: `/api/admin/songs/${song._id}/cover-art`,
+            headers: { authorization: `Bearer ${token}` },
+            payload: { releaseId: "rel-456" },
+        });
+
+        expect(response.statusCode).toBe(200);
+        const updated = response.json();
+        expect(updated.thumbnailFilename).not.toBe(oldFilename);
+
+        // Old thumbnail is gone
+        const oldRes = await app.inject({
+            method: "GET",
+            url: `/thumbnails/${oldFilename}`,
+        });
+        expect(oldRes.statusCode).toBe(404);
+    });
+
+    it("returns 404 for non-existent song", async () => {
+        const response = await app.inject({
+            method: "POST",
+            url: "/api/admin/songs/000000000000000000000000/cover-art",
+            headers: { authorization: `Bearer ${token}` },
+            payload: { releaseId: "rel-123" },
+        });
+
+        expect(response.statusCode).toBe(404);
+    });
+
+    it("returns 400 when releaseId is missing", async () => {
+        const createRes = await app.inject({
+            method: "POST",
+            url: "/api/admin/songs",
+            headers: { authorization: `Bearer ${token}` },
+            payload: { title: "Test Song", artist: "Test Artist", year: 2020 },
+        });
+        const song = createRes.json();
+
+        const response = await app.inject({
+            method: "POST",
+            url: `/api/admin/songs/${song._id}/cover-art`,
+            headers: { authorization: `Bearer ${token}` },
+            payload: {},
+        });
+
+        expect(response.statusCode).toBe(400);
+    });
+
+    it("returns 502 when Cover Art Archive is unavailable", async () => {
+        const createRes = await app.inject({
+            method: "POST",
+            url: "/api/admin/songs",
+            headers: { authorization: `Bearer ${token}` },
+            payload: { title: "Test Song", artist: "Test Artist", year: 2020 },
+        });
+        const song = createRes.json();
+
+        vi.spyOn(globalThis, "fetch").mockResolvedValue({
+            ok: false,
+            status: 404,
+        } as Response);
+
+        const response = await app.inject({
+            method: "POST",
+            url: `/api/admin/songs/${song._id}/cover-art`,
+            headers: { authorization: `Bearer ${token}` },
+            payload: { releaseId: "rel-no-art" },
         });
 
         expect(response.statusCode).toBe(502);

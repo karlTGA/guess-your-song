@@ -37,5 +37,6 @@ export interface MusicSearchResult {
     artist: string;
     year?: number;
     album?: string;
+    releaseId?: string;
     score: number;
 }

@@ -793,8 +793,9 @@ describe("SongsPage music search", () => {
         });
     });
 
-    it("selecting a result updates the song and closes modal", async () => {
+    it("selecting a result updates the song and fetches cover art", async () => {
         const updateSpy = vi.spyOn(api, "updateSong");
+        const coverArtSpy = vi.spyOn(api, "fetchCoverArt");
         const user = userEvent.setup();
         renderSongsPage();
 
@@ -838,9 +839,128 @@ describe("SongsPage music search", () => {
             });
         });
 
+        await waitFor(() => {
+            expect(coverArtSpy).toHaveBeenCalledWith("song1", "rel-1");
+        });
+
         // Modal should close
         await waitFor(() => {
             expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+        });
+    });
+
+    it("structured search pre-fills title, artist and year fields", async () => {
+        const user = userEvent.setup();
+        renderSongsPage();
+
+        await waitFor(() => {
+            expect(
+                screen.getAllByText("Bohemian Rhapsody").length,
+            ).toBeGreaterThan(0);
+        });
+
+        const searchButtons = screen.getAllByRole("button", {
+            name: /search music/i,
+        });
+        await user.click(searchButtons[0]);
+
+        await waitFor(() => {
+            expect(
+                screen.getByText("Search Music Database"),
+            ).toBeInTheDocument();
+        });
+
+        // Switch to structured search
+        await user.click(screen.getByText("Structured"));
+
+        expect(screen.getByLabelText(/^title$/i)).toHaveValue(
+            "Bohemian Rhapsody",
+        );
+        expect(screen.getByLabelText(/^artist$/i)).toHaveValue("Queen");
+        expect(screen.getByLabelText(/^year$/i)).toHaveValue("1975");
+    });
+
+    it("structured search builds query from fields", async () => {
+        const searchSpy = vi.spyOn(api, "searchMusic");
+        const user = userEvent.setup();
+        renderSongsPage();
+
+        await waitFor(() => {
+            expect(
+                screen.getAllByText("Bohemian Rhapsody").length,
+            ).toBeGreaterThan(0);
+        });
+
+        const searchButtons = screen.getAllByRole("button", {
+            name: /search music/i,
+        });
+        await user.click(searchButtons[0]);
+
+        await waitFor(() => {
+            expect(
+                screen.getByText("Search Music Database"),
+            ).toBeInTheDocument();
+        });
+
+        await user.click(screen.getByText("Structured"));
+
+        // Clear and edit the title field
+        const titleInput = screen.getByLabelText(/^title$/i);
+        await user.clear(titleInput);
+        await user.type(titleInput, "Don't Stop");
+
+        const artistInput = screen.getByLabelText(/^artist$/i);
+        await user.clear(artistInput);
+        await user.type(artistInput, "Fleetwood Mac");
+
+        const yearInput = screen.getByLabelText(/^year$/i);
+        await user.clear(yearInput);
+
+        // Click search button
+        await user.click(screen.getByRole("button", { name: /^search$/i }));
+
+        await waitFor(() => {
+            expect(searchSpy).toHaveBeenCalledWith(
+                'recording:"Don\'t Stop" AND artist:"Fleetwood Mac"',
+            );
+        });
+    });
+
+    it("structured search with only year builds correct query", async () => {
+        const searchSpy = vi.spyOn(api, "searchMusic");
+        const user = userEvent.setup();
+        renderSongsPage();
+
+        await waitFor(() => {
+            expect(
+                screen.getAllByText("Bohemian Rhapsody").length,
+            ).toBeGreaterThan(0);
+        });
+
+        const searchButtons = screen.getAllByRole("button", {
+            name: /search music/i,
+        });
+        await user.click(searchButtons[0]);
+
+        await waitFor(() => {
+            expect(
+                screen.getByText("Search Music Database"),
+            ).toBeInTheDocument();
+        });
+
+        await user.click(screen.getByText("Structured"));
+
+        const titleInput = screen.getByLabelText(/^title$/i);
+        await user.clear(titleInput);
+
+        const artistInput = screen.getByLabelText(/^artist$/i);
+        await user.clear(artistInput);
+
+        // Leave year as pre-filled "1975"
+        await user.click(screen.getByRole("button", { name: /^search$/i }));
+
+        await waitFor(() => {
+            expect(searchSpy).toHaveBeenCalledWith("date:1975");
         });
     });
 });

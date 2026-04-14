@@ -143,6 +143,7 @@ export const handlers = [
                 artist: "Found Artist",
                 year: 1999,
                 album: "Greatest Hits",
+                releaseId: "rel-1",
                 score: 100,
             },
             {
@@ -151,9 +152,20 @@ export const handlers = [
                 artist: "Another Artist",
                 year: 2005,
                 album: "B-Sides",
+                releaseId: "rel-2",
                 score: 80,
             },
         ]);
+    }),
+
+    http.post("/api/admin/songs/:id/cover-art", ({ params }) => {
+        return HttpResponse.json({
+            _id: params.id,
+            title: "Bohemian Rhapsody",
+            artist: "Queen",
+            year: 1975,
+            thumbnailFilename: "cover-art.jpg",
+        });
     }),
 
     http.put("/api/admin/songs/:id/audio", ({ params }) => {
