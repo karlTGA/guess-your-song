@@ -943,16 +943,29 @@ export default function SongsPage() {
                                 title: "Title",
                                 dataIndex: "title",
                                 key: "title",
+                                sorter: (
+                                    a: MusicSearchResult,
+                                    b: MusicSearchResult,
+                                ) => a.title.localeCompare(b.title),
                             },
                             {
                                 title: "Artist",
                                 dataIndex: "artist",
                                 key: "artist",
+                                sorter: (
+                                    a: MusicSearchResult,
+                                    b: MusicSearchResult,
+                                ) => a.artist.localeCompare(b.artist),
                             },
                             {
                                 title: "Year",
                                 dataIndex: "year",
                                 key: "year",
+                                defaultSortOrder: "ascend" as const,
+                                sorter: (
+                                    a: MusicSearchResult,
+                                    b: MusicSearchResult,
+                                ) => (a.year ?? 0) - (b.year ?? 0),
                             },
                             {
                                 title: "Album",

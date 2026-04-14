@@ -789,8 +789,93 @@ describe("SongsPage music search", () => {
         await waitFor(() => {
             expect(screen.getByText("test query Hit")).toBeInTheDocument();
             expect(screen.getByText("Found Artist")).toBeInTheDocument();
-            expect(screen.getByText("1999")).toBeInTheDocument();
+            expect(screen.getByText("2005")).toBeInTheDocument();
         });
+    });
+
+    it("search results are sorted by year ascending by default", async () => {
+        const user = userEvent.setup();
+        renderSongsPage();
+
+        await waitFor(() => {
+            expect(
+                screen.getAllByText("Bohemian Rhapsody").length,
+            ).toBeGreaterThan(0);
+        });
+
+        const searchButtons = screen.getAllByRole("button", {
+            name: /search music/i,
+        });
+        await user.click(searchButtons[0]);
+
+        await waitFor(() => {
+            expect(
+                screen.getByText("Search Music Database"),
+            ).toBeInTheDocument();
+        });
+
+        const searchInput = screen.getByRole("searchbox");
+        await user.clear(searchInput);
+        await user.type(searchInput, "test{Enter}");
+
+        await waitFor(() => {
+            expect(screen.getByText("test Hit")).toBeInTheDocument();
+        });
+
+        // Year cells should appear in ascending order (1999 before 2005)
+        const yearCells = screen
+            .getAllByRole("cell")
+            .filter((cell) => /^(1999|2005)$/.test(cell.textContent ?? ""));
+        expect(yearCells).toHaveLength(2);
+        expect(yearCells[0]).toHaveTextContent("1999");
+        expect(yearCells[1]).toHaveTextContent("2005");
+    });
+
+    it("clicking a column header re-sorts search results", async () => {
+        const user = userEvent.setup();
+        renderSongsPage();
+
+        await waitFor(() => {
+            expect(
+                screen.getAllByText("Bohemian Rhapsody").length,
+            ).toBeGreaterThan(0);
+        });
+
+        const searchButtons = screen.getAllByRole("button", {
+            name: /search music/i,
+        });
+        await user.click(searchButtons[0]);
+
+        await waitFor(() => {
+            expect(
+                screen.getByText("Search Music Database"),
+            ).toBeInTheDocument();
+        });
+
+        const searchInput = screen.getByRole("searchbox");
+        await user.clear(searchInput);
+        await user.type(searchInput, "test{Enter}");
+
+        await waitFor(() => {
+            expect(screen.getByText("test Hit")).toBeInTheDocument();
+        });
+
+        // Default sort is year ascending: B-Side (1999) first, Hit (2005) second
+        // Click Title column header to sort by title
+        const dialog = screen.getByRole("dialog");
+        await user.click(
+            within(dialog).getByRole("columnheader", { name: /title/i }),
+        );
+
+        // After ascending title sort: "test B-Side" before "test Hit"
+        const titleCells = screen
+            .getAllByRole("cell")
+            .filter((cell) =>
+                /^test (B-Side|Hit)$/.test(cell.textContent ?? ""),
+            );
+        expect(titleCells).toHaveLength(2);
+        expect(titleCells[0]).toHaveTextContent("test B-Side");
+        expect(titleCells[1]).toHaveTextContent("test Hit");
     });
 
     it("selecting a result updates the song and fetches cover art", async () => {
@@ -833,14 +918,14 @@ describe("SongsPage music search", () => {
 
         await waitFor(() => {
             expect(updateSpy).toHaveBeenCalledWith("song1", {
-                title: "test Hit",
-                artist: "Found Artist",
+                title: "test B-Side",
+                artist: "Another Artist",
                 year: 1999,
             });
         });
 
         await waitFor(() => {
-            expect(coverArtSpy).toHaveBeenCalledWith("song1", "rel-1");
+            expect(coverArtSpy).toHaveBeenCalledWith("song1", "rel-2");
         });
 
         // Modal should close
