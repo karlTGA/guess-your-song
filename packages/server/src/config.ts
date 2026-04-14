@@ -5,6 +5,7 @@ export interface AppConfig {
     jwtSecret: string;
     uploadDir: string;
     webDistDir?: string;
+    maxFileSize?: number;
 }
 
 export function loadConfig(): AppConfig {

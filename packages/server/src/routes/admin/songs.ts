@@ -79,6 +79,12 @@ export async function songRoutes(app: FastifyInstance) {
         }
         const fileBuffer = Buffer.concat(chunks);
 
+        if (data.file.truncated) {
+            return reply
+                .status(413)
+                .send({ error: "File size exceeds the allowed limit" });
+        }
+
         const audioFilename = await app.storageService.save(
             fileBuffer,
             data.filename,
@@ -130,6 +136,12 @@ export async function songRoutes(app: FastifyInstance) {
             chunks.push(chunk);
         }
         const fileBuffer = Buffer.concat(chunks);
+
+        if (data.file.truncated) {
+            return reply
+                .status(413)
+                .send({ error: "File size exceeds the allowed limit" });
+        }
 
         // Delete old audio file if replacing
         if (song.audioFilename) {

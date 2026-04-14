@@ -47,7 +47,9 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
 
     await app.register(cors, { origin: true });
     await app.register(jwt, { secret: config.jwtSecret });
-    await app.register(multipart);
+    await app.register(multipart, {
+        limits: { fileSize: config.maxFileSize ?? 50 * 1024 * 1024 }, // 50 MB default
+    });
     await app.register(fastifyStatic, {
         root: path.resolve(config.uploadDir),
         prefix: "/audio/",

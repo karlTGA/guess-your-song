@@ -134,4 +134,73 @@ describe("song file upload", () => {
         expect(audioRes.statusCode).toBe(200);
         expect(audioRes.body).toBe("fake-audio-content-for-serving");
     });
+
+    it("preserves full content for files larger than 1MB", async () => {
+        const size = 2 * 1024 * 1024; // 2MB
+        const fakeAudio = Buffer.alloc(size, 0x42);
+        const { body, contentType } = createMultipartPayload(
+            { title: "Large File", artist: "Test Artist", year: "2000" },
+            {
+                fieldname: "audio",
+                filename: "large-song.mp3",
+                content: fakeAudio,
+                contentType: "audio/mpeg",
+            },
+        );
+
+        const uploadRes = await app.inject({
+            method: "POST",
+            url: "/api/admin/songs/upload",
+            headers: {
+                authorization: `Bearer ${token}`,
+                "content-type": contentType,
+            },
+            payload: body,
+        });
+
+        expect(uploadRes.statusCode).toBe(201);
+        const song = uploadRes.json();
+
+        const audioRes = await app.inject({
+            method: "GET",
+            url: `/audio/${song.audioFilename}`,
+        });
+
+        expect(audioRes.statusCode).toBe(200);
+        expect(audioRes.rawPayload.length).toBe(size);
+    });
+
+    it("rejects upload when file exceeds size limit", async () => {
+        const smallLimitApp = await buildTestApp({
+            uploadDir: TEST_UPLOAD_DIR,
+            maxFileSize: 1024, // 1KB limit
+        });
+        const smallLimitToken = await registerAndLogin(smallLimitApp);
+
+        const fakeAudio = Buffer.alloc(2048, 0x42); // 2KB > 1KB limit
+        const { body, contentType } = createMultipartPayload(
+            { title: "Too Large", artist: "Test Artist", year: "2000" },
+            {
+                fieldname: "audio",
+                filename: "too-large.mp3",
+                content: fakeAudio,
+                contentType: "audio/mpeg",
+            },
+        );
+
+        const response = await smallLimitApp.inject({
+            method: "POST",
+            url: "/api/admin/songs/upload",
+            headers: {
+                authorization: `Bearer ${smallLimitToken}`,
+                "content-type": contentType,
+            },
+            payload: body,
+        });
+
+        expect(response.statusCode).toBe(413);
+        expect(response.json().error).toMatch(/file size/i);
+
+        await smallLimitApp.close();
+    });
 });
