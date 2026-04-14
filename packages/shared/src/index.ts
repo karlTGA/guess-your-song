@@ -25,6 +25,7 @@ export type {
 export type {
     CreateSongInput,
     ExtractedMetadata,
+    MusicSearchResult,
     Song,
     UpdateSongInput,
 } from "./types/song";

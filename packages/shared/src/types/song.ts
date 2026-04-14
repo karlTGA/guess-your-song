@@ -30,3 +30,12 @@ export interface ExtractedMetadata {
     duration?: number;
     thumbnail?: string;
 }
+
+export interface MusicSearchResult {
+    id: string;
+    title: string;
+    artist: string;
+    year?: number;
+    album?: string;
+    score: number;
+}

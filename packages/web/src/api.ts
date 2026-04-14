@@ -1,4 +1,7 @@
-import type { ExtractedMetadata } from "@guess-your-song/shared";
+import type {
+    ExtractedMetadata,
+    MusicSearchResult,
+} from "@guess-your-song/shared";
 
 const API_BASE = "/api";
 
@@ -145,6 +148,12 @@ export function extractMetadata(file: File) {
         method: "POST",
         body: formData,
     });
+}
+
+export function searchMusic(query: string) {
+    return request<MusicSearchResult[]>(
+        `/admin/songs/search-music?query=${encodeURIComponent(query)}`,
+    );
 }
 
 // Playlists

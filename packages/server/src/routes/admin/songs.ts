@@ -1,3 +1,4 @@
+import type { MusicSearchResult } from "@guess-your-song/shared";
 import type { FastifyInstance } from "fastify";
 import { parseBuffer } from "music-metadata";
 import { PlaylistModel } from "../../models/Playlist";
@@ -154,6 +155,30 @@ export async function songRoutes(app: FastifyInstance) {
         );
 
         song.audioFilename = audioFilename;
+
+        // Auto-extract thumbnail from album art if song has no thumbnail
+        if (!song.thumbnailFilename) {
+            try {
+                const metadata = await parseBuffer(fileBuffer);
+                if (
+                    metadata.common.picture &&
+                    metadata.common.picture.length > 0
+                ) {
+                    const pic = metadata.common.picture[0];
+                    const ext =
+                        pic.format.split("/")[1]?.replace("jpeg", "jpg") ||
+                        "jpg";
+                    song.thumbnailFilename =
+                        await app.thumbnailStorageService.save(
+                            Buffer.from(pic.data),
+                            `cover.${ext}`,
+                        );
+                }
+            } catch {
+                // Ignore metadata extraction errors
+            }
+        }
+
         await song.save();
 
         return reply.send(song);
@@ -220,5 +245,56 @@ export async function songRoutes(app: FastifyInstance) {
         }
 
         return reply.send(result);
+    });
+
+    app.get("/api/admin/songs/search-music", async (request, reply) => {
+        const { query } = request.query as { query?: string };
+        if (!query?.trim()) {
+            return reply
+                .status(400)
+                .send({ error: "query parameter is required" });
+        }
+
+        const url = `https://musicbrainz.org/ws/2/recording?query=${encodeURIComponent(query)}&fmt=json&limit=10`;
+        const response = await fetch(url, {
+            headers: {
+                "User-Agent": "GuessYourSong/1.0 (music-guessing-game)",
+                Accept: "application/json",
+            },
+        });
+
+        if (!response.ok) {
+            return reply
+                .status(502)
+                .send({ error: "MusicBrainz API request failed" });
+        }
+
+        const data = (await response.json()) as {
+            recordings: Array<{
+                id: string;
+                title: string;
+                score: number;
+                "artist-credit"?: Array<{ name: string }>;
+                "first-release-date"?: string;
+                releases?: Array<{ title: string }>;
+            }>;
+        };
+
+        const results: MusicSearchResult[] = (data.recordings ?? []).map(
+            (rec) => ({
+                id: rec.id,
+                title: rec.title,
+                artist:
+                    rec["artist-credit"]?.map((a) => a.name).join(", ") ?? "",
+                year: rec["first-release-date"]
+                    ? parseInt(rec["first-release-date"].slice(0, 4), 10) ||
+                      undefined
+                    : undefined,
+                album: rec.releases?.[0]?.title,
+                score: rec.score,
+            }),
+        );
+
+        return reply.send(results);
     });
 }

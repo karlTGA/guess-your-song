@@ -722,3 +722,125 @@ describe("SongsPage inline editing", () => {
         expect(updateSpy).not.toHaveBeenCalled();
     });
 });
+
+describe("SongsPage music search", () => {
+    beforeEach(() => {
+        localStorage.clear();
+    });
+
+    it("search button opens modal pre-filled with artist and title", async () => {
+        const user = userEvent.setup();
+        renderSongsPage();
+
+        await waitFor(() => {
+            expect(
+                screen.getAllByText("Bohemian Rhapsody").length,
+            ).toBeGreaterThan(0);
+        });
+
+        const searchButtons = screen.getAllByRole("button", {
+            name: /search music/i,
+        });
+        expect(searchButtons.length).toBeGreaterThan(0);
+
+        await user.click(searchButtons[0]);
+
+        await waitFor(() => {
+            expect(
+                screen.getByText("Search Music Database"),
+            ).toBeInTheDocument();
+        });
+
+        const searchInput = screen.getByRole("searchbox");
+        expect(searchInput).toHaveValue("Queen Bohemian Rhapsody");
+    });
+
+    it("searching shows results from MusicBrainz", async () => {
+        const searchSpy = vi.spyOn(api, "searchMusic");
+        const user = userEvent.setup();
+        renderSongsPage();
+
+        await waitFor(() => {
+            expect(
+                screen.getAllByText("Bohemian Rhapsody").length,
+            ).toBeGreaterThan(0);
+        });
+
+        const searchButtons = screen.getAllByRole("button", {
+            name: /search music/i,
+        });
+        await user.click(searchButtons[0]);
+
+        await waitFor(() => {
+            expect(
+                screen.getByText("Search Music Database"),
+            ).toBeInTheDocument();
+        });
+
+        const searchInput = screen.getByRole("searchbox");
+
+        await user.clear(searchInput);
+        await user.type(searchInput, "test query{Enter}");
+
+        await waitFor(() => {
+            expect(searchSpy).toHaveBeenCalledWith("test query");
+        });
+
+        await waitFor(() => {
+            expect(screen.getByText("test query Hit")).toBeInTheDocument();
+            expect(screen.getByText("Found Artist")).toBeInTheDocument();
+            expect(screen.getByText("1999")).toBeInTheDocument();
+        });
+    });
+
+    it("selecting a result updates the song and closes modal", async () => {
+        const updateSpy = vi.spyOn(api, "updateSong");
+        const user = userEvent.setup();
+        renderSongsPage();
+
+        await waitFor(() => {
+            expect(
+                screen.getAllByText("Bohemian Rhapsody").length,
+            ).toBeGreaterThan(0);
+        });
+
+        const searchButtons = screen.getAllByRole("button", {
+            name: /search music/i,
+        });
+        await user.click(searchButtons[0]);
+
+        await waitFor(() => {
+            expect(
+                screen.getByText("Search Music Database"),
+            ).toBeInTheDocument();
+        });
+
+        const searchInput = screen.getByRole("searchbox");
+
+        await user.clear(searchInput);
+        await user.type(searchInput, "test{Enter}");
+
+        await waitFor(() => {
+            expect(screen.getByText("test Hit")).toBeInTheDocument();
+        });
+
+        // Click "Apply" on the first result
+        const applyButtons = screen.getAllByRole("button", {
+            name: /apply/i,
+        });
+        await user.click(applyButtons[0]);
+
+        await waitFor(() => {
+            expect(updateSpy).toHaveBeenCalledWith("song1", {
+                title: "test Hit",
+                artist: "Found Artist",
+                year: 1999,
+            });
+        });
+
+        // Modal should close
+        await waitFor(() => {
+            expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+        });
+    });
+});

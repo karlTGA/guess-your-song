@@ -133,6 +133,29 @@ export const handlers = [
         });
     }),
 
+    http.get("/api/admin/songs/search-music", ({ request }) => {
+        const url = new URL(request.url);
+        const query = url.searchParams.get("query") ?? "";
+        return HttpResponse.json([
+            {
+                id: "mb-1",
+                title: `${query} Hit`,
+                artist: "Found Artist",
+                year: 1999,
+                album: "Greatest Hits",
+                score: 100,
+            },
+            {
+                id: "mb-2",
+                title: `${query} B-Side`,
+                artist: "Another Artist",
+                year: 2005,
+                album: "B-Sides",
+                score: 80,
+            },
+        ]);
+    }),
+
     http.put("/api/admin/songs/:id/audio", ({ params }) => {
         return HttpResponse.json({
             _id: params.id,

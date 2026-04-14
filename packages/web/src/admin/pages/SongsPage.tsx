@@ -3,8 +3,10 @@ import {
     DeleteOutlined,
     InboxOutlined,
     PlusOutlined,
+    SearchOutlined,
     UploadOutlined,
 } from "@ant-design/icons";
+import type { MusicSearchResult } from "@guess-your-song/shared";
 import {
     Button,
     Input,
@@ -26,6 +28,7 @@ import {
     extractMetadata,
     getPlaylists,
     getSongs,
+    searchMusic,
     updatePlaylist,
     updateSong,
     uploadAudioForSong,
@@ -81,6 +84,10 @@ export default function SongsPage() {
         field: "title" | "artist" | "year";
     } | null>(null);
     const [editValue, setEditValue] = useState<string | number>("");
+    const [searchModalSong, setSearchModalSong] = useState<Song | null>(null);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [searchResults, setSearchResults] = useState<MusicSearchResult[]>([]);
+    const [searchLoading, setSearchLoading] = useState(false);
 
     const loadSongs = useCallback(async () => {
         setLoading(true);
@@ -168,6 +175,41 @@ export default function SongsPage() {
         }
         setEditingCell(null);
         setEditValue("");
+    };
+
+    const handleOpenSearch = (song: Song) => {
+        setSearchModalSong(song);
+        setSearchQuery(`${song.artist} ${song.title}`);
+        setSearchResults([]);
+    };
+
+    const handleSearch = async () => {
+        if (!searchQuery.trim()) return;
+        setSearchLoading(true);
+        try {
+            const results = await searchMusic(searchQuery);
+            setSearchResults(results);
+        } catch {
+            message.error("Search failed");
+        } finally {
+            setSearchLoading(false);
+        }
+    };
+
+    const handleApplyResult = async (result: MusicSearchResult) => {
+        if (!searchModalSong) return;
+        try {
+            await updateSong(searchModalSong._id, {
+                title: result.title,
+                artist: result.artist,
+                year: result.year,
+            });
+            message.success("Song updated");
+            setSearchModalSong(null);
+            loadSongs();
+        } catch {
+            message.error("Failed to update song");
+        }
     };
 
     const handleCloseModal = () => {
@@ -418,6 +460,13 @@ export default function SongsPage() {
             key: "actions",
             render: (_: unknown, record: Song) => (
                 <Space>
+                    <Button
+                        icon={<SearchOutlined />}
+                        aria-label="Search Music"
+                        onClick={() => handleOpenSearch(record)}
+                    >
+                        Search Music
+                    </Button>
                     <Button
                         icon={<UploadOutlined />}
                         aria-label="Upload Audio"
@@ -748,6 +797,74 @@ export default function SongsPage() {
                             )}
                         </div>
                     </>
+                )}
+            </Modal>
+
+            <Modal
+                title="Search Music Database"
+                aria-label="Search Music Database"
+                open={!!searchModalSong}
+                onCancel={() => setSearchModalSong(null)}
+                width={720}
+                footer={null}
+            >
+                <Input.Search
+                    placeholder="Search MusicBrainz..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onSearch={handleSearch}
+                    loading={searchLoading}
+                    enterButton
+                    style={{ marginBottom: 16 }}
+                />
+                {searchResults.length > 0 && (
+                    <Table
+                        dataSource={searchResults}
+                        rowKey="id"
+                        size="small"
+                        pagination={false}
+                        columns={[
+                            {
+                                title: "Title",
+                                dataIndex: "title",
+                                key: "title",
+                            },
+                            {
+                                title: "Artist",
+                                dataIndex: "artist",
+                                key: "artist",
+                            },
+                            {
+                                title: "Year",
+                                dataIndex: "year",
+                                key: "year",
+                            },
+                            {
+                                title: "Album",
+                                dataIndex: "album",
+                                key: "album",
+                            },
+                            {
+                                title: "",
+                                key: "action",
+                                render: (
+                                    _: unknown,
+                                    result: MusicSearchResult,
+                                ) => (
+                                    <Button
+                                        type="primary"
+                                        size="small"
+                                        aria-label="Apply"
+                                        onClick={() =>
+                                            handleApplyResult(result)
+                                        }
+                                    >
+                                        Apply
+                                    </Button>
+                                ),
+                            },
+                        ]}
+                    />
                 )}
             </Modal>
         </div>

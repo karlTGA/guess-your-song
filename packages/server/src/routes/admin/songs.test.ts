@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import type { FastifyInstance } from "fastify";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildTestApp } from "../../test/helpers";
 
 const TEST_UPLOAD_DIR = "./test-uploads";
@@ -309,6 +309,57 @@ describe("admin songs API", () => {
             url: `/audio/${oldFilename}`,
         });
         expect(oldAudioRes.statusCode).toBe(404);
+    });
+
+    it("uploading audio for existing song auto-extracts thumbnail from album art", async () => {
+        const createRes = await app.inject({
+            method: "POST",
+            url: "/api/admin/songs",
+            headers: { authorization: `Bearer ${token}` },
+            payload: { title: "Art Song", artist: "Art Artist", year: 2021 },
+        });
+        const song = createRes.json();
+        expect(song.thumbnailFilename).toBeUndefined();
+
+        const fakePng = Buffer.from([
+            0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+        ]);
+        const mp3 = buildId3TaggedMp3WithPicture(
+            { title: "Art Song", artist: "Art Artist", year: "2021" },
+            { mimeType: "image/png", data: fakePng },
+        );
+        const { body, contentType } = createMultipartPayload(
+            {},
+            {
+                fieldname: "audio",
+                filename: "art.mp3",
+                content: mp3,
+                contentType: "audio/mpeg",
+            },
+        );
+
+        const uploadRes = await app.inject({
+            method: "PUT",
+            url: `/api/admin/songs/${song._id}/audio`,
+            headers: {
+                authorization: `Bearer ${token}`,
+                "content-type": contentType,
+            },
+            payload: body,
+        });
+
+        expect(uploadRes.statusCode).toBe(200);
+        const updated = uploadRes.json();
+        expect(updated.audioFilename).toBeDefined();
+        expect(updated.thumbnailFilename).toBeDefined();
+        expect(updated.thumbnailFilename).toMatch(/\.png$/);
+
+        // Thumbnail is servable
+        const thumbRes = await app.inject({
+            method: "GET",
+            url: `/thumbnails/${updated.thumbnailFilename}`,
+        });
+        expect(thumbRes.statusCode).toBe(200);
     });
 
     it("returns 404 when uploading audio for non-existent song", async () => {
@@ -822,3 +873,107 @@ function buildId3TaggedMp3WithPicture(
 
     return Buffer.concat([id3Header, framesBuffer, mpegFrame]);
 }
+
+describe("search-music endpoint", () => {
+    let app: FastifyInstance;
+    let token: string;
+
+    beforeEach(async () => {
+        app = await buildTestApp({ uploadDir: TEST_UPLOAD_DIR });
+        token = await registerAndLogin(app);
+    });
+
+    afterEach(async () => {
+        vi.restoreAllMocks();
+        await app.close();
+        if (fs.existsSync(TEST_UPLOAD_DIR)) {
+            fs.rmSync(TEST_UPLOAD_DIR, { recursive: true });
+        }
+    });
+
+    it("proxies search to MusicBrainz and returns mapped results", async () => {
+        vi.spyOn(globalThis, "fetch").mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                recordings: [
+                    {
+                        id: "rec-1",
+                        title: "Bohemian Rhapsody",
+                        score: 100,
+                        "artist-credit": [{ name: "Queen" }],
+                        "first-release-date": "1975-10-31",
+                        releases: [{ title: "A Night at the Opera" }],
+                    },
+                    {
+                        id: "rec-2",
+                        title: "Bohemian Rhapsody",
+                        score: 85,
+                        "artist-credit": [{ name: "The Muppets" }],
+                        "first-release-date": "2018",
+                        releases: [],
+                    },
+                ],
+            }),
+        } as Response);
+
+        const response = await app.inject({
+            method: "GET",
+            url: "/api/admin/songs/search-music?query=Bohemian%20Rhapsody",
+            headers: { authorization: `Bearer ${token}` },
+        });
+
+        expect(response.statusCode).toBe(200);
+        const results = response.json();
+        expect(results).toHaveLength(2);
+        expect(results[0]).toEqual({
+            id: "rec-1",
+            title: "Bohemian Rhapsody",
+            artist: "Queen",
+            year: 1975,
+            album: "A Night at the Opera",
+            score: 100,
+        });
+        expect(results[1]).toEqual({
+            id: "rec-2",
+            title: "Bohemian Rhapsody",
+            artist: "The Muppets",
+            year: 2018,
+            album: undefined,
+            score: 85,
+        });
+
+        expect(globalThis.fetch).toHaveBeenCalledWith(
+            expect.stringContaining("musicbrainz.org/ws/2/recording"),
+            expect.objectContaining({
+                headers: expect.objectContaining({
+                    "User-Agent": expect.any(String),
+                }),
+            }),
+        );
+    });
+
+    it("returns 400 when query is missing", async () => {
+        const response = await app.inject({
+            method: "GET",
+            url: "/api/admin/songs/search-music",
+            headers: { authorization: `Bearer ${token}` },
+        });
+
+        expect(response.statusCode).toBe(400);
+    });
+
+    it("returns 502 when MusicBrainz API fails", async () => {
+        vi.spyOn(globalThis, "fetch").mockResolvedValue({
+            ok: false,
+            status: 503,
+        } as Response);
+
+        const response = await app.inject({
+            method: "GET",
+            url: "/api/admin/songs/search-music?query=test",
+            headers: { authorization: `Bearer ${token}` },
+        });
+
+        expect(response.statusCode).toBe(502);
+    });
+});
