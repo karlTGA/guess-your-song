@@ -26,6 +26,20 @@ function renderPlayPage() {
     );
 }
 
+/** Pick the first gap (tap once) then confirm (tap again). */
+async function placeAtFirstGap(user: ReturnType<typeof userEvent.setup>) {
+    const placeButtons = await screen.findAllByRole("button", {
+        name: /place here/i,
+    });
+    // First tap selects the gap
+    await user.click(placeButtons[0]);
+    // Second tap on the same (now-active) gap confirms
+    const confirm = await screen.findAllByRole("button", {
+        name: /place here/i,
+    });
+    await user.click(confirm[0]);
+}
+
 describe("PlayPage", () => {
     beforeEach(() => {
         localStorage.clear();
@@ -38,11 +52,11 @@ describe("PlayPage", () => {
             expect(screen.getByText(/round 1/i)).toBeInTheDocument();
         });
 
-        // Should show an audio element
+        // Audio element exists (hidden — we render our own play UI)
         expect(document.querySelector("audio")).toBeInTheDocument();
     });
 
-    it("player can place song at a position", async () => {
+    it("player can place song at a position (tap-to-pick, tap-to-confirm)", async () => {
         const placeSpy = vi.spyOn(api, "placeSong");
         const user = userEvent.setup();
         renderPlayPage();
@@ -51,18 +65,14 @@ describe("PlayPage", () => {
             expect(screen.getByText(/round 1/i)).toBeInTheDocument();
         });
 
-        // Click "Place Here" button (for position 0 in empty timeline)
-        const placeButtons = await screen.findAllByRole("button", {
-            name: /place here/i,
-        });
-        await user.click(placeButtons[0]);
+        await placeAtFirstGap(user);
 
         await waitFor(() => {
             expect(placeSpy).toHaveBeenCalledWith("ABC123", "Alice", 0);
         });
     });
 
-    it("shows correct/incorrect feedback after placement", async () => {
+    it("shows correct/incorrect reveal after placement", async () => {
         renderPlayPage();
         const user = userEvent.setup();
 
@@ -70,18 +80,15 @@ describe("PlayPage", () => {
             expect(screen.getByText(/round 1/i)).toBeInTheDocument();
         });
 
-        const placeButtons = await screen.findAllByRole("button", {
-            name: /place here/i,
-        });
-        await user.click(placeButtons[0]);
+        await placeAtFirstGap(user);
 
         await waitFor(() => {
-            expect(screen.getAllByText(/correct/i).length).toBeGreaterThan(0);
+            // RevealOverlay shows "CORRECT" or "INCORRECT" banner
+            expect(screen.getByText(/correct/i)).toBeInTheDocument();
         });
     });
 
     it("navigates to results page when game finishes after placement", async () => {
-        // Override the place handler to return status: "finished"
         server.use(
             http.post("/api/game/sessions/:code/place", async ({ request }) => {
                 const body = (await request.json()) as {
@@ -120,12 +127,8 @@ describe("PlayPage", () => {
             expect(screen.getAllByText(/round 1/i).length).toBeGreaterThan(0);
         });
 
-        const placeButtons = await screen.findAllByRole("button", {
-            name: /place here/i,
-        });
-        await user.click(placeButtons[0]);
+        await placeAtFirstGap(user);
 
-        // Should navigate to results page
         await waitFor(() => {
             expect(screen.getByText("Results Page")).toBeInTheDocument();
         });
@@ -143,11 +146,7 @@ describe("PlayPage", () => {
                         audioFilename: "",
                         startedAt: new Date().toISOString(),
                     },
-                    player: {
-                        name: playerName,
-                        timeline: [],
-                        score: 0,
-                    },
+                    player: { name: playerName, timeline: [], score: 0 },
                     totalRounds: 2,
                     currentRoundIndex: 0,
                 });
@@ -166,7 +165,7 @@ describe("PlayPage", () => {
             screen.getByRole("button", { name: /skip song/i }),
         ).toBeInTheDocument();
 
-        // Audio element should not be rendered
+        // No audio element rendered when unavailable
         expect(document.querySelector("audio")).not.toBeInTheDocument();
     });
 
@@ -184,11 +183,7 @@ describe("PlayPage", () => {
                         audioFilename: "",
                         startedAt: new Date().toISOString(),
                     },
-                    player: {
-                        name: playerName,
-                        timeline: [],
-                        score: 0,
-                    },
+                    player: { name: playerName, timeline: [], score: 0 },
                     totalRounds: 2,
                     currentRoundIndex: 0,
                 });
@@ -277,27 +272,25 @@ describe("PlayPage", () => {
         renderPlayPage();
         const user = userEvent.setup();
 
-        // Verify initial audio source
         await waitFor(() => {
             const audio = document.querySelector("audio") as HTMLAudioElement;
             expect(audio).toBeInTheDocument();
             expect(audio.src).toContain("abc.mp3");
         });
 
-        // Place the song
-        const placeButtons = await screen.findAllByRole("button", {
-            name: /place here/i,
-        });
-        await user.click(placeButtons[0]);
+        await placeAtFirstGap(user);
 
-        // After placement, should load new round with new audio
+        // Reveal overlay appears — tap to dismiss
+        const reveal = await screen.findByText(/correct/i);
+        await user.click(reveal);
+
+        // After dismissal, new round loads with new audio
         await waitFor(() => {
             const audio = document.querySelector("audio") as HTMLAudioElement;
             expect(audio).toBeInTheDocument();
             expect(audio.src).toContain("def.mp3");
         });
 
-        // Should show round 2
         expect(screen.getByText(/round 2/i)).toBeInTheDocument();
     });
 
@@ -313,19 +306,13 @@ describe("PlayPage", () => {
                         audioFilename: "",
                         startedAt: new Date().toISOString(),
                     },
-                    player: {
-                        name: playerName,
-                        timeline: [],
-                        score: 0,
-                    },
+                    player: { name: playerName, timeline: [], score: 0 },
                     totalRounds: 1,
                     currentRoundIndex: 0,
                 });
             }),
             http.post("/api/game/sessions/:code/skip", async ({ request }) => {
-                const body = (await request.json()) as {
-                    playerName: string;
-                };
+                const body = (await request.json()) as { playerName: string };
                 return HttpResponse.json({
                     status: "finished",
                     player: {
@@ -391,9 +378,7 @@ describe("PlayPage", () => {
             expect(screen.getByText("Bohemian Rhapsody")).toBeInTheDocument();
         });
 
-        const thumbnail = screen.getByRole("img", {
-            name: /thumbnail/i,
-        });
+        const thumbnail = screen.getByRole("img", { name: /thumbnail/i });
         expect(thumbnail).toHaveAttribute("src", "/thumbnails/thumb1.jpg");
     });
 });

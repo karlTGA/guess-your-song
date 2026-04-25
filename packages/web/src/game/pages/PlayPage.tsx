@@ -1,17 +1,13 @@
-import { Alert, Button, Card, Space, Tag, Typography } from "antd";
-import { useCallback, useEffect, useState } from "react";
+import { Alert, Button } from "antd";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getGameState, placeSong, skipSong } from "../../api";
-
-const { Title, Text } = Typography;
-
-interface SongInfo {
-    _id: string;
-    title: string;
-    artist: string;
-    year: number;
-    thumbnailFilename?: string;
-}
+import BigCassette from "../components/BigCassette";
+import type { PlacedSong } from "../components/PlacedCard";
+import RevealOverlay from "../components/RevealOverlay";
+import TimelineStrip from "../components/TimelineStrip";
+import { gameTheme } from "../components/theme";
+import "../components/game.css";
 
 interface GameState {
     status: string;
@@ -21,24 +17,32 @@ interface GameState {
         thumbnailFilename?: string;
         startedAt: string;
     };
-    player: { name: string; timeline: SongInfo[]; score: number };
+    player: {
+        name: string;
+        timeline: PlacedSong[];
+        score: number;
+    };
     totalRounds: number;
     currentRoundIndex: number;
 }
 
-interface PlacementResult {
+interface PendingReveal {
     correct: boolean;
-    song: SongInfo;
+    song: PlacedSong;
 }
 
 export default function PlayPage() {
     const { code } = useParams<{ code: string }>();
     const navigate = useNavigate();
     const playerName = localStorage.getItem("playerName") || "";
+
+    const audioRef = useRef<HTMLAudioElement>(null);
     const [gameState, setGameState] = useState<GameState | null>(null);
-    const [placementResult, setPlacementResult] =
-        useState<PlacementResult | null>(null);
+    const [pendingPosition, setPendingPosition] = useState<number | null>(null);
+    const [reveal, setReveal] = useState<PendingReveal | null>(null);
     const [audioError, setAudioError] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+    const [playing, setPlaying] = useState(false);
 
     const loadState = useCallback(async () => {
         if (!code || !playerName) return;
@@ -50,7 +54,7 @@ export default function PlayPage() {
                 navigate(`/game/${code}/results`);
             }
         } catch {
-            // ignore
+            // ignore — keep last known state
         }
     }, [code, playerName, navigate]);
 
@@ -58,19 +62,69 @@ export default function PlayPage() {
         loadState();
     }, [loadState]);
 
-    const handlePlace = async (position: number) => {
-        if (!code || !playerName) return;
+    // Wire up <audio> element events.
+    useEffect(() => {
+        const el = audioRef.current;
+        if (!el) return;
+        const onPlay = () => setPlaying(true);
+        const onPause = () => setPlaying(false);
+        const onEnded = () => setPlaying(false);
+        el.addEventListener("play", onPlay);
+        el.addEventListener("pause", onPause);
+        el.addEventListener("ended", onEnded);
+        return () => {
+            el.removeEventListener("play", onPlay);
+            el.removeEventListener("pause", onPause);
+            el.removeEventListener("ended", onEnded);
+        };
+    }, []);
+
+    // Reset audio when round changes.
+    const audioFilename = gameState?.currentRound?.audioFilename;
+    // biome-ignore lint/correctness/useExhaustiveDependencies: we only want to reset when the audio file changes, not on every round change
+    useEffect(() => {
+        const el = audioRef.current;
+        if (!el) return;
+        el.pause();
+        el.currentTime = 0;
+        setPlaying(false);
+    }, [audioFilename]);
+
+    const togglePlay = () => {
+        const el = audioRef.current;
+        if (!el) return;
+        if (el.paused) {
+            void el.play().catch(() => {
+                /* autoplay blocked or src missing */
+            });
+        } else {
+            el.pause();
+        }
+    };
+
+    const handleConfirm = async () => {
+        if (!code || !playerName || pendingPosition === null) return;
+        setSubmitting(true);
         try {
-            const result = await placeSong(code, playerName, position);
+            const result = await placeSong(code, playerName, pendingPosition);
+            // Pause audio on submit so the reveal can speak.
+            audioRef.current?.pause();
             if (result.status === "finished") {
                 navigate(`/game/${code}/results`);
                 return;
             }
-            setPlacementResult({ correct: result.correct, song: result.song });
-            await loadState();
+            setReveal({ correct: result.correct, song: result.song });
+            setPendingPosition(null);
         } catch {
             // ignore
+        } finally {
+            setSubmitting(false);
         }
+    };
+
+    const handleRevealDismiss = async () => {
+        setReveal(null);
+        await loadState();
     };
 
     const handleSkip = async () => {
@@ -81,7 +135,8 @@ export default function PlayPage() {
                 navigate(`/game/${code}/results`);
                 return;
             }
-            setPlacementResult(null);
+            setReveal(null);
+            setPendingPosition(null);
             setAudioError(false);
             await loadState();
         } catch {
@@ -91,45 +146,107 @@ export default function PlayPage() {
 
     if (!gameState) {
         return (
-            <div style={{ textAlign: "center", padding: 32 }}>Loading...</div>
+            <div
+                style={{
+                    minHeight: "100vh",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: gameTheme.color.bg,
+                    color: gameTheme.color.inkInverse,
+                    fontFamily: gameTheme.font.display,
+                    letterSpacing: "0.2em",
+                }}
+            >
+                LOADING…
+            </div>
         );
     }
 
     const { player, totalRounds, currentRoundIndex, currentRound } = gameState;
-    const hasAudio = currentRound && currentRound.audioFilename !== "";
+    const hasAudio = !!currentRound && currentRound.audioFilename !== "";
     const audioSrc = hasAudio
         ? `/audio/${currentRound.audioFilename}`
         : undefined;
 
     return (
-        <div style={{ padding: 16, maxWidth: 600, margin: "0 auto" }}>
-            <Space direction="vertical" style={{ width: "100%" }} size="middle">
-                <div
+        <div
+            style={{
+                minHeight: "100vh",
+                background: gameTheme.color.bg,
+                color: gameTheme.color.inkInverse,
+                fontFamily: gameTheme.font.body,
+                display: "flex",
+                flexDirection: "column",
+            }}
+        >
+            {/* Top bar: round + score */}
+            <header
+                style={{
+                    padding: "16px 20px",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    fontFamily: gameTheme.font.display,
+                    fontSize: 12,
+                    letterSpacing: "0.15em",
+                }}
+            >
+                <span>
+                    ROUND {currentRoundIndex + 1} / {totalRounds}
+                </span>
+                <span
                     style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
+                        background: gameTheme.color.accentSoft,
+                        color: gameTheme.color.accent,
+                        padding: "4px 12px",
+                        borderRadius: gameTheme.radius.pill,
+                        fontWeight: 700,
                     }}
                 >
-                    <Title level={4} style={{ margin: 0 }}>
-                        Round {currentRoundIndex + 1} of {totalRounds}
-                    </Title>
-                    <Tag color="blue">Score: {player.score}</Tag>
-                </div>
+                    SCORE {player.score}
+                </span>
+            </header>
 
-                {audioSrc && !audioError && (
-                    <Card size="small">
-                        <Text strong>
-                            Listen and place this song on your timeline:
-                        </Text>
+            {/* Cassette + audio */}
+            <main
+                style={{
+                    flex: 1,
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 24,
+                    padding: 16,
+                }}
+            >
+                {hasAudio && audioSrc && !audioError && (
+                    <>
                         {/* biome-ignore lint/a11y/useMediaCaption: song guessing game - no captions for music */}
                         <audio
-                            controls
+                            ref={audioRef}
                             src={audioSrc}
-                            style={{ width: "100%", marginTop: 8 }}
+                            preload="auto"
+                            className="gys-hidden-audio"
                             onError={() => setAudioError(true)}
                         />
-                    </Card>
+                        <BigCassette
+                            playing={playing}
+                            onToggle={togglePlay}
+                            currentRound={currentRoundIndex + 1}
+                            disabled={submitting}
+                        />
+                        <div
+                            style={{
+                                fontFamily: gameTheme.font.display,
+                                fontSize: 11,
+                                letterSpacing: "0.15em",
+                                color: gameTheme.color.muted,
+                            }}
+                        >
+                            TAP TO PLAY · LISTEN · DRAG TO PLACE
+                        </div>
+                    </>
                 )}
 
                 {(!hasAudio || audioError) && (
@@ -138,6 +255,7 @@ export default function PlayPage() {
                         message="Song audio is unavailable"
                         description="The audio file for this song is missing. You can skip to the next song."
                         showIcon
+                        style={{ maxWidth: 400 }}
                         action={
                             <Button
                                 size="small"
@@ -149,88 +267,32 @@ export default function PlayPage() {
                         }
                     />
                 )}
+            </main>
 
-                {placementResult && (
-                    <Alert
-                        type={placementResult.correct ? "success" : "error"}
-                        message={
-                            placementResult.correct ? "Correct!" : "Incorrect!"
-                        }
-                        description={`${placementResult.song.title} by ${placementResult.song.artist} (${placementResult.song.year})`}
-                        showIcon
-                    />
-                )}
+            {/* Timeline strip */}
+            <footer
+                style={{
+                    padding: "12px 8px 24px",
+                    background: `linear-gradient(180deg, transparent, ${gameTheme.color.bg})`,
+                }}
+            >
+                <TimelineStrip
+                    timeline={player.timeline}
+                    pendingPosition={pendingPosition}
+                    onPickPosition={setPendingPosition}
+                    onConfirm={handleConfirm}
+                    onCancel={() => setPendingPosition(null)}
+                    disabled={submitting || !hasAudio}
+                />
+            </footer>
 
-                <Card title="Your Timeline">
-                    {player.timeline.length === 0 && !placementResult ? (
-                        <div>
-                            <Text type="secondary">
-                                Your timeline is empty. Place your first song!
-                            </Text>
-                            <div style={{ marginTop: 8 }}>
-                                <Button
-                                    onClick={() => handlePlace(0)}
-                                    aria-label="Place Here"
-                                >
-                                    Place Here
-                                </Button>
-                            </div>
-                        </div>
-                    ) : (
-                        <div>
-                            <Button
-                                size="small"
-                                onClick={() => handlePlace(0)}
-                                style={{ marginBottom: 4 }}
-                                aria-label="Place Here"
-                            >
-                                Place Here
-                            </Button>
-                            {player.timeline.map((song, i) => (
-                                <div key={song._id}>
-                                    <Card
-                                        size="small"
-                                        style={{ marginBottom: 4 }}
-                                    >
-                                        <div
-                                            style={{
-                                                display: "flex",
-                                                alignItems: "center",
-                                                gap: 8,
-                                            }}
-                                        >
-                                            {song.thumbnailFilename && (
-                                                <img
-                                                    src={`/thumbnails/${song.thumbnailFilename}`}
-                                                    alt={`${song.title} thumbnail`}
-                                                    style={{
-                                                        width: 40,
-                                                        height: 40,
-                                                        objectFit: "cover",
-                                                        borderRadius: 4,
-                                                    }}
-                                                />
-                                            )}
-                                            <span>
-                                                <Text strong>{song.title}</Text>{" "}
-                                                — {song.artist} ({song.year})
-                                            </span>
-                                        </div>
-                                    </Card>
-                                    <Button
-                                        size="small"
-                                        onClick={() => handlePlace(i + 1)}
-                                        style={{ marginBottom: 4 }}
-                                        aria-label="Place Here"
-                                    >
-                                        Place Here
-                                    </Button>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </Card>
-            </Space>
+            {reveal && (
+                <RevealOverlay
+                    correct={reveal.correct}
+                    song={reveal.song}
+                    onDismiss={handleRevealDismiss}
+                />
+            )}
         </div>
     );
 }

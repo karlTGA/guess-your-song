@@ -1,0 +1,42 @@
+/* Global animations + page-level styles for the Guess Your Song game UI.
+   Import once from PlayPage / JoinPage / ResultsPage. */
+
+@keyframes gys-vinyl-spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes gys-reveal-in {
+    from {
+        opacity: 0;
+        transform: scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes gys-shake {
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+    20%,
+    60% {
+        transform: translateX(-6px);
+    }
+    40%,
+    80% {
+        transform: translateX(6px);
+    }
+}
+
+/* Hide the WebKit default audio chrome — we render our own controls. */
+.gys-hidden-audio {
+    display: none;
+}
