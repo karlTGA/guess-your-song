@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getGameState, placeSong, skipSong } from "../../api";
 import BigCassette from "../components/BigCassette";
-import type { PlacedSong } from "../components/PlacedCard";
+import PlacedCard, { type PlacedSong } from "../components/PlacedCard";
 import RevealOverlay from "../components/RevealOverlay";
 import TimelineStrip from "../components/TimelineStrip";
 import { gameTheme } from "../components/theme";
@@ -31,6 +31,17 @@ interface PendingReveal {
     song: PlacedSong;
 }
 
+/**
+ * The active-round screen. Layout (top → bottom):
+ *  - HUD: round counter + score pill
+ *  - BigCassette + "TAP TO PLAY · DRAG TO PLACE" hint
+ *  - Sliding TimelineStrip with the mystery card pinned at the center
+ *  - DROP IT button to commit
+ *  - RevealOverlay flashes after each placement (CORRECT/WRONG flip card)
+ *
+ * Wrong placements briefly shake the whole screen; the reveal then auto-
+ * dismisses after ~1.8s and we re-fetch game state.
+ */
 export default function PlayPage() {
     const { code } = useParams<{ code: string }>();
     const navigate = useNavigate();
@@ -38,11 +49,12 @@ export default function PlayPage() {
 
     const audioRef = useRef<HTMLAudioElement>(null);
     const [gameState, setGameState] = useState<GameState | null>(null);
-    const [pendingPosition, setPendingPosition] = useState<number | null>(null);
+    const [pendingPosition, setPendingPosition] = useState<number>(0);
     const [reveal, setReveal] = useState<PendingReveal | null>(null);
     const [audioError, setAudioError] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [playing, setPlaying] = useState(false);
+    const [shake, setShake] = useState(false);
 
     const loadState = useCallback(async () => {
         if (!code || !playerName) return;
@@ -50,6 +62,9 @@ export default function PlayPage() {
             const state = await getGameState(code, playerName);
             setGameState(state);
             setAudioError(false);
+            // Reset pending pick to the middle of the new timeline.
+            const len = state.player.timeline.length;
+            setPendingPosition(Math.floor((len + 1) / 2));
             if (state.status === "finished") {
                 navigate(`/game/${code}/results`);
             }
@@ -79,9 +94,9 @@ export default function PlayPage() {
         };
     }, []);
 
-    // Reset audio when round changes.
+    // Reset audio when the round's audio file changes.
     const audioFilename = gameState?.currentRound?.audioFilename;
-    // biome-ignore lint/correctness/useExhaustiveDependencies: we only want to reset when the audio file changes, not on every round change
+    // biome-ignore lint/correctness/useExhaustiveDependencies: only reset on file change
     useEffect(() => {
         const el = audioRef.current;
         if (!el) return;
@@ -107,14 +122,16 @@ export default function PlayPage() {
         setSubmitting(true);
         try {
             const result = await placeSong(code, playerName, pendingPosition);
-            // Pause audio on submit so the reveal can speak.
             audioRef.current?.pause();
             if (result.status === "finished") {
                 navigate(`/game/${code}/results`);
                 return;
             }
+            if (!result.correct) {
+                setShake(true);
+                setTimeout(() => setShake(false), 500);
+            }
             setReveal({ correct: result.correct, song: result.song });
-            setPendingPosition(null);
         } catch {
             // ignore
         } finally {
@@ -136,7 +153,6 @@ export default function PlayPage() {
                 return;
             }
             setReveal(null);
-            setPendingPosition(null);
             setAudioError(false);
             await loadState();
         } catch {
@@ -152,7 +168,7 @@ export default function PlayPage() {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    background: gameTheme.color.bg,
+                    background: gameTheme.color.bgGradient,
                     color: gameTheme.color.inkInverse,
                     fontFamily: gameTheme.font.display,
                     letterSpacing: "0.2em",
@@ -169,18 +185,31 @@ export default function PlayPage() {
         ? `/audio/${currentRound.audioFilename}`
         : undefined;
 
+    // The mystery card hovers above the active gap. Year is hidden — that's
+    // the whole point of the game.
+    const mysterySong: PlacedSong | null = currentRound
+        ? {
+              id: currentRound.songId,
+              title: "???",
+              artist: "???",
+              year: 0,
+              thumbnailFilename: currentRound.thumbnailFilename,
+          }
+        : null;
+
     return (
         <div
             style={{
                 minHeight: "100vh",
-                background: gameTheme.color.bg,
+                background: gameTheme.color.bgGradient,
                 color: gameTheme.color.inkInverse,
                 fontFamily: gameTheme.font.body,
                 display: "flex",
                 flexDirection: "column",
+                animation: shake ? "gys-shake .5s" : "none",
             }}
         >
-            {/* Top bar: round + score */}
+            {/* HUD */}
             <header
                 style={{
                     padding: "16px 20px",
@@ -202,6 +231,7 @@ export default function PlayPage() {
                         padding: "4px 12px",
                         borderRadius: gameTheme.radius.pill,
                         fontWeight: 700,
+                        boxShadow: `0 0 12px ${gameTheme.color.accent}55`,
                     }}
                 >
                     SCORE {player.score}
@@ -211,18 +241,17 @@ export default function PlayPage() {
             {/* Cassette + audio */}
             <main
                 style={{
-                    flex: 1,
                     display: "flex",
                     flexDirection: "column",
                     alignItems: "center",
                     justifyContent: "center",
-                    gap: 24,
-                    padding: 16,
+                    gap: 18,
+                    padding: "8px 16px 16px",
                 }}
             >
                 {hasAudio && audioSrc && !audioError && (
                     <>
-                        {/* biome-ignore lint/a11y/useMediaCaption: song guessing game - no captions for music */}
+                        {/* biome-ignore lint/a11y/useMediaCaption: song-guess game, no captions */}
                         <audio
                             ref={audioRef}
                             src={audioSrc}
@@ -238,9 +267,9 @@ export default function PlayPage() {
                         />
                         <div
                             style={{
-                                fontFamily: gameTheme.font.display,
+                                fontFamily: gameTheme.font.mono,
                                 fontSize: 11,
-                                letterSpacing: "0.15em",
+                                letterSpacing: "0.18em",
                                 color: gameTheme.color.muted,
                             }}
                         >
@@ -269,10 +298,14 @@ export default function PlayPage() {
                 )}
             </main>
 
-            {/* Timeline strip */}
+            {/* Timeline */}
             <footer
                 style={{
-                    padding: "12px 8px 24px",
+                    flex: 1,
+                    padding: "12px 0 24px",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "flex-end",
                     background: `linear-gradient(180deg, transparent, ${gameTheme.color.bg})`,
                 }}
             >
@@ -281,8 +314,18 @@ export default function PlayPage() {
                     pendingPosition={pendingPosition}
                     onPickPosition={setPendingPosition}
                     onConfirm={handleConfirm}
-                    onCancel={() => setPendingPosition(null)}
-                    disabled={submitting || !hasAudio}
+                    disabled={submitting || !hasAudio || !!reveal}
+                    mysteryCard={
+                        mysterySong ? (
+                            <div style={{ width: 80 }}>
+                                <PlacedCard
+                                    song={mysterySong}
+                                    size="sm"
+                                    isMystery
+                                />
+                            </div>
+                        ) : null
+                    }
                 />
             </footer>
 

@@ -67,7 +67,8 @@ export default function BigCassette({
                             borderRadius: "50%",
                             background:
                                 "radial-gradient(circle at 35% 35%, #444, #0A0E27)",
-                            boxShadow: "inset 0 0 2px rgba(255,255,255,0.3)",
+                            boxShadow:
+                                "inset 0 0 2px rgba(255,255,255,0.3)",
                         }}
                     />
                 ))}
@@ -94,7 +95,8 @@ export default function BigCassette({
                     }}
                 >
                     <span style={{ fontWeight: 700 }}>
-                        SIDE A · TRACK {String(currentRound).padStart(2, "0")}
+                        SIDE A · TRACK{" "}
+                        {String(currentRound).padStart(2, "0")}
                     </span>
                     <span style={{ opacity: 0.5 }}>♪♪♪</span>
                 </div>
@@ -255,7 +257,9 @@ function PlayPulse({ playing, onToggle, disabled }: PlayPulseProps) {
                 height: 66,
                 borderRadius: "50%",
                 border: `2px solid ${accent}`,
-                background: playing ? `${accent}33` : "rgba(255,255,255,0.08)",
+                background: playing
+                    ? `${accent}33`
+                    : "rgba(255,255,255,0.08)",
                 color: gameTheme.color.inkInverse,
                 cursor: disabled ? "not-allowed" : "pointer",
                 opacity: disabled ? 0.5 : 1,

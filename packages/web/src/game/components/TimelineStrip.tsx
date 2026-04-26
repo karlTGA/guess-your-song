@@ -1,8 +1,10 @@
 import {
     type CSSProperties,
     type PointerEvent as ReactPointerEvent,
+    type ReactNode,
     useCallback,
     useEffect,
+    useMemo,
     useRef,
     useState,
 } from "react";
@@ -13,275 +15,339 @@ interface TimelineStripProps {
     timeline: PlacedSong[];
     /**
      * Currently-highlighted gap index (0..timeline.length).
-     * `null` = no selection. Driven by parent so the cassette/score area
-     * can clear the pending placement on round change.
+     * Driven by parent so the page can clear on round change.
      */
-    pendingPosition: number | null;
-    /** Called when the user picks a gap (by tap OR by drag-snap). */
+    pendingPosition: number;
+    /** Called whenever the user lands on a different gap (drag-snap or tap). */
     onPickPosition: (position: number) => void;
-    /** Called when the user confirms the pending placement. */
+    /** Called when the user presses the big DROP IT button. */
     onConfirm: () => void;
-    /** Called when the user cancels (tap outside / explicit cancel). */
-    onCancel: () => void;
     /** Disable interaction (e.g. while a placement is being submitted). */
     disabled?: boolean;
+    /**
+     * Renders the floating "mystery" card pinned over the active gap.
+     * Pass null when nothing is in flight (e.g. after a placement, before
+     * the next round loads).
+     */
+    mysteryCard?: ReactNode | null;
 }
 
 const GAP_WIDTH = 56;
 const CARD_WIDTH = 96;
-const STRIP_HEIGHT = 156;
+const CARD_HEIGHT = 132;
+const STRIP_HEIGHT = CARD_HEIGHT + 60;
 
 /**
- * Sticker-style horizontal timeline (Variant C).
+ * Horizontal timeline that DRAGS UNDER A FIXED CENTER POINTER.
  *
  * Layout: [Gap 0] [Card 0] [Gap 1] [Card 1] ... [Card n-1] [Gap n]
- * Each gap is a tap target. A draggable "pin" above the strip acts as
- * an alternative input — drag it across gaps to snap-select.
  *
- * The active gap shows a "Place here?" confirm pill. Tap confirm to commit.
+ * Interaction:
+ *  - Pointer-down + drag anywhere on the strip slides the whole track
+ *    horizontally. On release, snaps to the nearest gap under the center
+ *    line and reports it via onPickPosition.
+ *  - Tap on a specific gap is a fallback that picks that gap directly.
+ *  - The DROP IT button at the bottom commits the pending position.
+ *  - Keyboard: ←/→ on the focused strip moves between gaps; Enter/Space
+ *    confirms.
+ *
+ * The "mystery card" — the unknown song the player is placing — is pinned
+ * at the center, hovering above the active gap, and bounces gently.
  */
 export default function TimelineStrip({
     timeline,
     pendingPosition,
     onPickPosition,
     onConfirm,
-    onCancel,
     disabled = false,
+    mysteryCard,
 }: TimelineStripProps) {
-    const stripRef = useRef<HTMLDivElement>(null);
-    const gapRefs = useRef<Array<HTMLDivElement | null>>([]);
-    const [dragX, setDragX] = useState<number | null>(null);
+    const viewportRef = useRef<HTMLDivElement>(null);
+    const [viewportW, setViewportW] = useState(360);
 
-    // Sort timeline by year ascending — server sends it in placement order
-    // but we always render chronologically.
-    const sorted = [...timeline].sort((a, b) => a.year - b.year);
+    // Sort timeline by year ascending — server may send placements out of
+    // order, but we always render chronologically.
+    const sorted = useMemo(
+        () => [...timeline].sort((a, b) => a.year - b.year),
+        [timeline],
+    );
     const gapCount = sorted.length + 1;
 
-    /** Pixel center of each gap, relative to the strip. */
-    const gapCenters = useCallback(() => {
-        const strip = stripRef.current;
-        if (!strip) return [];
-        const stripRect = strip.getBoundingClientRect();
-        return gapRefs.current.map((el) => {
-            if (!el) return 0;
-            const r = el.getBoundingClientRect();
-            return r.left + r.width / 2 - stripRect.left + strip.scrollLeft;
-        });
+    // Measure viewport so we can center the active gap precisely.
+    useEffect(() => {
+        const el = viewportRef.current;
+        if (!el) return;
+        const measure = () => setViewportW(el.clientWidth);
+        measure();
+        const ro = new ResizeObserver(measure);
+        ro.observe(el);
+        return () => ro.disconnect();
     }, []);
 
-    /** Snap an absolute X (within the strip) to the nearest gap index. */
-    const snapToGap = useCallback(
-        (x: number) => {
-            const centers = gapCenters();
-            if (centers.length === 0) return 0;
-            let best = 0;
-            let bestDist = Number.POSITIVE_INFINITY;
-            centers.forEach((cx, i) => {
-                const d = Math.abs(cx - x);
-                if (d < bestDist) {
-                    bestDist = d;
-                    best = i;
-                }
-            });
-            return best;
-        },
-        [gapCenters],
-    );
-
-    // Keep the active gap in view when it changes.
-    useEffect(() => {
-        if (pendingPosition === null) return;
-        const el = gapRefs.current[pendingPosition];
-        const strip = stripRef.current;
-        if (el && strip) {
-            const elRect = el.getBoundingClientRect();
-            const stripRect = strip.getBoundingClientRect();
-            if (
-                elRect.left < stripRect.left ||
-                elRect.right > stripRect.right
-            ) {
-                strip.scrollTo({
-                    left:
-                        el.offsetLeft -
-                        strip.clientWidth / 2 +
-                        el.clientWidth / 2,
-                    behavior: "smooth",
-                });
-            }
+    /** Pixel center of each gap, measured along the strip itself. */
+    const gapCenters = useMemo(() => {
+        const centers: number[] = [];
+        let x = 0;
+        for (let i = 0; i < gapCount; i++) {
+            centers.push(x + GAP_WIDTH / 2);
+            x += GAP_WIDTH;
+            if (i < sorted.length) x += CARD_WIDTH;
         }
-    }, [pendingPosition]);
+        return centers;
+    }, [gapCount, sorted.length]);
 
-    const handlePinPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    // Pointer-drag state. dragX is the live offset added on top of the
+    // resting (snapped) translateX.
+    const [dragX, setDragX] = useState(0);
+    const [dragging, setDragging] = useState(false);
+    const startClientX = useRef(0);
+    const baseOffset = useRef(0);
+
+    /** Where the strip wants to sit so the active gap is under the center. */
+    const restingOffset = viewportW / 2 - (gapCenters[pendingPosition] ?? 0);
+    const liveOffset = dragging ? baseOffset.current + dragX : restingOffset;
+
+    const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
         if (disabled) return;
+        // Only react to primary button / first touch.
+        if (e.button !== undefined && e.button !== 0) return;
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-        const strip = stripRef.current;
-        if (!strip) return;
-        const rect = strip.getBoundingClientRect();
-        const x = e.clientX - rect.left + strip.scrollLeft;
-        setDragX(x);
-        onPickPosition(snapToGap(x));
+        setDragging(true);
+        startClientX.current = e.clientX;
+        baseOffset.current = restingOffset;
+        setDragX(0);
     };
 
-    const handlePinPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
-        if (dragX === null) return;
-        const strip = stripRef.current;
-        if (!strip) return;
-        const rect = strip.getBoundingClientRect();
-        const x = e.clientX - rect.left + strip.scrollLeft;
-        setDragX(x);
-        onPickPosition(snapToGap(x));
+    const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+        if (!dragging) return;
+        setDragX(e.clientX - startClientX.current);
     };
 
-    const handlePinPointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
-        if (dragX === null) return;
+    const onPointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+        if (!dragging) return;
         (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-        setDragX(null);
-        // Selection stays — user confirms via the pill.
+        setDragging(false);
+        // Snap to nearest gap based on what is now under the center line.
+        const finalOffset = baseOffset.current + dragX;
+        const targetCenter = viewportW / 2 - finalOffset;
+        let nearest = 0;
+        let best = Number.POSITIVE_INFINITY;
+        gapCenters.forEach((cx, i) => {
+            const d = Math.abs(cx - targetCenter);
+            if (d < best) {
+                best = d;
+                nearest = i;
+            }
+        });
+        setDragX(0);
+        if (nearest !== pendingPosition) onPickPosition(nearest);
+    };
+
+    const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+        if (disabled) return;
+        if (e.key === "ArrowLeft" && pendingPosition > 0) {
+            e.preventDefault();
+            onPickPosition(pendingPosition - 1);
+        } else if (e.key === "ArrowRight" && pendingPosition < gapCount - 1) {
+            e.preventDefault();
+            onPickPosition(pendingPosition + 1);
+        } else if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onConfirm();
+        }
     };
 
     return (
         <div
-            style={{
-                width: "100%",
-                position: "relative",
-                userSelect: "none",
-                touchAction: "pan-y",
-            }}
+            style={{ width: "100%", position: "relative", userSelect: "none" }}
         >
-            {/* Drag pin above the timeline */}
+            {/* Year-range labels */}
             <div
+                style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    padding: "0 24px 10px",
+                    fontFamily: gameTheme.font.mono,
+                    fontSize: 10,
+                    color: gameTheme.color.mutedDim,
+                    letterSpacing: "0.15em",
+                }}
+            >
+                <span>◀ EARLIER</span>
+                <span>DRAG TO PLACE</span>
+                <span>LATER ▶</span>
+            </div>
+
+            {/* Strip viewport — fixed width, the track inside slides under it. */}
+            {/** biome-ignore lint/a11y/useSemanticElements: composite drag region */}
+            <div
+                ref={viewportRef}
                 role="slider"
-                tabIndex={disabled ? -1 : 0}
                 aria-label="Drag to choose a position on your timeline"
                 aria-valuemin={0}
                 aria-valuemax={Math.max(0, gapCount - 1)}
-                aria-valuenow={pendingPosition ?? 0}
-                onPointerDown={handlePinPointerDown}
-                onPointerMove={handlePinPointerMove}
-                onPointerUp={handlePinPointerUp}
-                onPointerCancel={handlePinPointerUp}
-                onKeyDown={(e) => {
-                    if (disabled) return;
-                    const cur = pendingPosition ?? 0;
-                    if (e.key === "ArrowLeft" && cur > 0) {
-                        e.preventDefault();
-                        onPickPosition(cur - 1);
-                    } else if (e.key === "ArrowRight" && cur < gapCount - 1) {
-                        e.preventDefault();
-                        onPickPosition(cur + 1);
-                    } else if (e.key === "Enter" || e.key === " ") {
-                        if (pendingPosition !== null) {
-                            e.preventDefault();
-                            onConfirm();
-                        }
-                    } else if (e.key === "Escape") {
-                        e.preventDefault();
-                        onCancel();
-                    }
-                }}
+                aria-valuenow={pendingPosition}
+                tabIndex={disabled ? -1 : 0}
+                onPointerDown={onPointerDown}
+                onPointerMove={onPointerMove}
+                onPointerUp={onPointerUp}
+                onPointerCancel={onPointerUp}
+                onKeyDown={onKeyDown}
                 style={{
-                    height: 40,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: disabled ? "not-allowed" : "grab",
-                    color: gameTheme.color.muted,
-                    fontFamily: gameTheme.font.display,
-                    fontSize: 11,
-                    letterSpacing: "0.15em",
-                    opacity: disabled ? 0.5 : 1,
-                }}
-            >
-                ◀ DRAG OR TAP A GAP ▶
-            </div>
-
-            {/* Strip itself */}
-            <div
-                ref={stripRef}
-                style={{
-                    width: "100%",
+                    position: "relative",
                     height: STRIP_HEIGHT,
-                    overflowX: "auto",
-                    overflowY: "visible",
-                    background: gameTheme.color.bgElevated,
-                    borderRadius: gameTheme.radius.md,
-                    padding: "12px 8px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 0,
-                    scrollbarWidth: "thin",
+                    overflow: "hidden",
+                    touchAction: "none",
+                    cursor: dragging ? "grabbing" : disabled ? "default" : "grab",
                 }}
             >
-                {/* Empty-state hint */}
-                {sorted.length === 0 && pendingPosition === null && (
+                {/* Center indicator line */}
+                <div
+                    style={{
+                        position: "absolute",
+                        left: "50%",
+                        top: 0,
+                        bottom: 20,
+                        width: 2,
+                        marginLeft: -1,
+                        background: `linear-gradient(180deg, transparent, ${gameTheme.color.accent} 15%, ${gameTheme.color.accent} 85%, transparent)`,
+                        boxShadow: `0 0 14px ${gameTheme.color.accent}`,
+                        zIndex: 1,
+                        pointerEvents: "none",
+                    }}
+                />
+                {/* Top pointer / arrow */}
+                <div
+                    style={{
+                        position: "absolute",
+                        left: "50%",
+                        top: -2,
+                        transform: "translateX(-50%)",
+                        width: 0,
+                        height: 0,
+                        borderLeft: "8px solid transparent",
+                        borderRight: "8px solid transparent",
+                        borderTop: `10px solid ${gameTheme.color.accent}`,
+                        filter: `drop-shadow(0 0 6px ${gameTheme.color.accent})`,
+                        zIndex: 2,
+                        pointerEvents: "none",
+                    }}
+                />
+
+                {/* Sliding track */}
+                <div
+                    style={{
+                        position: "absolute",
+                        top: 20,
+                        left: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        height: CARD_HEIGHT,
+                        transform: `translateX(${liveOffset}px)`,
+                        transition: dragging
+                            ? "none"
+                            : "transform .35s cubic-bezier(.3,1.1,.4,1)",
+                        willChange: "transform",
+                    }}
+                >
+                    <Gap
+                        active={pendingPosition === 0}
+                        onTap={() => !disabled && onPickPosition(0)}
+                    />
+                    {sorted.map((song, i) => (
+                        <span
+                            key={song.id}
+                            style={{ display: "contents" }}
+                        >
+                            <div style={{ width: CARD_WIDTH, flexShrink: 0 }}>
+                                <PlacedCard song={song} size="sm" />
+                            </div>
+                            <Gap
+                                active={pendingPosition === i + 1}
+                                onTap={() =>
+                                    !disabled && onPickPosition(i + 1)
+                                }
+                            />
+                        </span>
+                    ))}
+                </div>
+
+                {/* Floating mystery card pinned at viewport center */}
+                {mysteryCard && (
                     <div
                         style={{
-                            color: gameTheme.color.mutedDim,
-                            fontFamily: gameTheme.font.display,
-                            fontSize: 11,
-                            letterSpacing: "0.15em",
-                            margin: "0 auto",
+                            position: "absolute",
+                            left: "50%",
+                            top: -6,
+                            // Translate handled inside the keyframe so we can
+                            // also bob vertically without losing centering.
+                            pointerEvents: "none",
+                            zIndex: 3,
+                            animation:
+                                "gys-bounce-placeholder 1.4s ease-in-out infinite",
+                            transform: "translateX(-50%)",
                         }}
                     >
-                        EMPTY TIMELINE — PLACE YOUR FIRST SONG
+                        {mysteryCard}
                     </div>
                 )}
+            </div>
 
-                {Array.from({ length: gapCount }).map((_, gapIdx) => (
-                    <GapAndCard
-                        // biome-ignore lint/suspicious/noArrayIndexKey: gap index IS the identity
-                        key={`gap-${gapIdx}`}
-                        gapIdx={gapIdx}
-                        active={pendingPosition === gapIdx}
-                        disabled={disabled}
-                        onPick={() => onPickPosition(gapIdx)}
-                        onConfirm={onConfirm}
-                        gapRef={(el) => {
-                            gapRefs.current[gapIdx] = el;
-                        }}
-                        nextSong={sorted[gapIdx]}
-                    />
-                ))}
+            {/* DROP IT button */}
+            <div
+                style={{
+                    padding: "14px 24px 0",
+                    display: "flex",
+                    justifyContent: "center",
+                }}
+            >
+                <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={onConfirm}
+                    aria-label="Drop song on selected position"
+                    style={{
+                        background: gameTheme.color.accent,
+                        color: gameTheme.color.ink,
+                        fontFamily: gameTheme.font.display,
+                        fontWeight: 900,
+                        fontSize: 16,
+                        letterSpacing: "0.2em",
+                        padding: "14px 48px",
+                        border: "none",
+                        borderRadius: gameTheme.radius.md,
+                        boxShadow: `0 5px 0 ${gameTheme.color.bg}, 0 5px 24px ${gameTheme.color.accent}aa`,
+                        cursor: disabled ? "not-allowed" : "pointer",
+                        opacity: disabled ? 0.4 : 1,
+                        transition: "transform .1s",
+                    }}
+                >
+                    DROP IT ▼
+                </button>
             </div>
         </div>
     );
 }
 
-interface GapAndCardProps {
-    gapIdx: number;
+/* ------------------------------------------------------------------ */
+
+interface GapProps {
     active: boolean;
-    disabled: boolean;
-    onPick: () => void;
-    onConfirm: () => void;
-    gapRef: (el: HTMLDivElement | null) => void;
-    /** The card AFTER this gap (undefined if this is the trailing gap). */
-    nextSong: PlacedSong | undefined;
+    onTap: () => void;
 }
 
-function GapAndCard({
-    gapIdx,
-    active,
-    disabled,
-    onPick,
-    onConfirm,
-    gapRef,
-    nextSong,
-}: GapAndCardProps) {
+function Gap({ active, onTap }: GapProps) {
     const accent = gameTheme.color.accent;
-
-    const gapStyle: CSSProperties = {
-        width: active ? GAP_WIDTH + 24 : GAP_WIDTH,
-        height: STRIP_HEIGHT - 24,
+    const wrap: CSSProperties = {
+        width: GAP_WIDTH,
         flexShrink: 0,
+        height: "100%",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        position: "relative",
-        transition: "width .2s",
     };
-
-    const dashStyle: CSSProperties = {
-        width: "calc(100% - 12px)",
+    const inner: CSSProperties = {
+        width: GAP_WIDTH - 14,
         height: "85%",
         borderRadius: gameTheme.radius.md,
         border: `2px dashed ${active ? accent : "rgba(255,255,255,0.18)"}`,
@@ -290,66 +356,26 @@ function GapAndCard({
             ? `0 0 14px ${accent}66, inset 0 0 14px ${accent}33`
             : "none",
         transition: "all .2s",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
     };
-
     return (
-        <>
-            {/** biome-ignore lint/a11y/useSemanticElements: keep it simple here */}
-            <div
-                ref={gapRef}
-                style={gapStyle}
-                role="button"
-                tabIndex={disabled ? -1 : 0}
-                aria-label="Place here"
-                aria-pressed={active}
-                onClick={() => {
-                    if (disabled) return;
-                    if (active) onConfirm();
-                    else onPick();
-                }}
-                onKeyDown={(e) => {
-                    if (disabled) return;
-                    if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        if (active) onConfirm();
-                        else onPick();
-                    }
-                }}
-            >
-                <div style={dashStyle}>
-                    {active && (
-                        <span
-                            style={{
-                                fontFamily: gameTheme.font.display,
-                                fontSize: 10,
-                                letterSpacing: "0.2em",
-                                color: accent,
-                                textShadow: `0 0 6px ${accent}`,
-                                fontWeight: 700,
-                                textAlign: "center",
-                                lineHeight: 1.4,
-                                padding: 4,
-                            }}
-                        >
-                            TAP TO
-                            <br />
-                            CONFIRM
-                        </span>
-                    )}
-                </div>
-            </div>
-
-            {nextSong && (
-                <div style={{ flexShrink: 0 }}>
-                    <PlacedCard song={nextSong} size="sm" />
-                </div>
-            )}
-        </>
+        // biome-ignore lint/a11y/useSemanticElements: drag region wraps these
+        <div
+            style={wrap}
+            role="button"
+            tabIndex={-1}
+            aria-label="Place here"
+            aria-pressed={active}
+            onPointerDown={(e) => {
+                // Don't initiate strip-drag from a tap-pick; let the click
+                // through and stop the drag handler from grabbing this.
+                e.stopPropagation();
+            }}
+            onClick={onTap}
+        >
+            <div style={inner} />
+        </div>
     );
 }
 
-// re-export type so PlayPage doesn't need to import from PlacedCard directly
+// re-export so PlayPage doesn't need to import from PlacedCard directly
 export type { PlacedSong };

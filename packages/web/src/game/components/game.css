@@ -1,6 +1,7 @@
 /* Global animations + page-level styles for the Guess Your Song game UI.
-   Import once from PlayPage / JoinPage / ResultsPage. */
+   Import once from PlayPage / StartScreen / ResultsPage. */
 
+/* ---------- Reels / vinyl ---------- */
 @keyframes gys-vinyl-spin {
     from {
         transform: rotate(0deg);
@@ -10,6 +11,7 @@
     }
 }
 
+/* ---------- Generic transitions ---------- */
 @keyframes gys-reveal-in {
     from {
         opacity: 0;
@@ -21,18 +23,129 @@
     }
 }
 
+@keyframes gys-slide-up-in {
+    0% {
+        transform: translateY(30px);
+        opacity: 0;
+    }
+    100% {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes gys-pop-in {
+    0% {
+        transform: scale(0.3);
+        opacity: 0;
+    }
+    70% {
+        transform: scale(1.1);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* ---------- Reveal flip card ---------- */
+@keyframes gys-flip-year {
+    0% {
+        transform: rotateX(90deg);
+        opacity: 0;
+    }
+    100% {
+        transform: rotateX(0deg);
+        opacity: 1;
+    }
+}
+
+/* ---------- Wrong-answer screen shake ---------- */
 @keyframes gys-shake {
     0%,
     100% {
         transform: translateX(0);
     }
-    20%,
-    60% {
-        transform: translateX(-6px);
+    10%,
+    30%,
+    50%,
+    70%,
+    90% {
+        transform: translateX(-8px);
     }
+    20%,
     40%,
+    60%,
     80% {
-        transform: translateX(6px);
+        transform: translateX(8px);
+    }
+}
+
+/* ---------- Neon title flicker ---------- */
+@keyframes gys-neon-flicker {
+    0%,
+    100% {
+        opacity: 1;
+        text-shadow:
+            0 0 6px currentColor,
+            0 0 14px currentColor,
+            0 0 24px currentColor;
+    }
+    45% {
+        opacity: 0.85;
+        text-shadow: 0 0 2px currentColor;
+    }
+    50% {
+        opacity: 1;
+        text-shadow:
+            0 0 6px currentColor,
+            0 0 14px currentColor;
+    }
+}
+
+/* ---------- Animated grid floor ---------- */
+@keyframes gys-grid-scroll {
+    from {
+        background-position: 0 0;
+    }
+    to {
+        background-position: 0 40px;
+    }
+}
+
+/* ---------- Mystery card hovering above the active gap ---------- */
+@keyframes gys-bounce-placeholder {
+    0%,
+    100% {
+        transform: translateX(-50%) translateY(0) scale(1);
+    }
+    50% {
+        transform: translateX(-50%) translateY(-4px) scale(1.03);
+    }
+}
+
+/* ---------- Confetti burst (reads --tx / --ty / --rot from inline style) ---------- */
+@keyframes gys-confetti-burst {
+    0% {
+        transform: translate(0, 0) rotate(0);
+        opacity: 1;
+    }
+    100% {
+        transform: translate(var(--tx), var(--ty)) rotate(var(--rot));
+        opacity: 0;
+    }
+}
+
+/* ---------- Pulse ring around the play button ---------- */
+@keyframes gys-pulse-ring {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(1.6);
+        opacity: 0;
     }
 }
 
