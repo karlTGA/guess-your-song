@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 import { gameTheme } from "./theme";
 
 interface BigCassetteProps {
-    /** Whether the audio is currently playing — drives reel spin + button icon. */
+    /** Whether the audio is currently playing — drives reel spin + button state. */
     playing: boolean;
     /** Called when the user taps the central play/pause button. */
     onToggle: () => void;
@@ -13,11 +13,22 @@ interface BigCassetteProps {
 }
 
 /**
- * Large cassette tape that contains the play button.
- * Two reels spin while playing, the tape line is tangent to the bottoms.
+ * Large cassette tape that contains the glowing play button.
+ *
+ * Layout:
+ *  - Outer cassette body with neon outer glow + chunky border + screws
+ *  - White Space-Mono top label strip ("SIDE A · TRACK NN")
+ *  - Dark inset window holding [LeftReel] [PlayPulse] [RightReel]
+ *  - Brown tape line tangent to the reel bottoms
+ *  - Bottom ticker label aligned with the lower screws
+ *
+ * Animations:
+ *  - Reels spin (`gys-vinyl-spin 1.6s linear infinite`) while `playing` is true
+ *  - PlayPulse emits two staggered `gys-pulse-ring` waves while playing
+ *  - PlayPulse has a radial-gradient body + thick accent ring + outer glow
  *
  * The whole component is purely presentational — pass `playing` from your
- * <audio> ref and `onToggle` to drive playback.
+ * <audio> ref's onPlay/onPause and `onToggle` to drive playback.
  */
 export default function BigCassette({
     playing,
@@ -73,7 +84,7 @@ export default function BigCassette({
                     />
                 ))}
 
-                {/* Top label strip */}
+                {/* Top label strip — Space Mono, like the prototype */}
                 <div
                     style={{
                         position: "absolute",
@@ -88,7 +99,7 @@ export default function BigCassette({
                         display: "flex",
                         justifyContent: "space-between",
                         alignItems: "center",
-                        fontFamily: gameTheme.font.display,
+                        fontFamily: gameTheme.font.mono,
                         fontSize: 10,
                         color: gameTheme.color.ink,
                         letterSpacing: "0.1em",
@@ -150,7 +161,8 @@ export default function BigCassette({
                             top: "50%",
                             height: 2,
                             marginTop: 17,
-                            background: `linear-gradient(90deg, rgba(139,90,43,0) 0%, rgba(139,90,43,0.85) 12%, rgba(139,90,43,0.85) 88%, rgba(139,90,43,0) 100%)`,
+                            background:
+                                "linear-gradient(90deg, rgba(139,90,43,0) 0%, rgba(139,90,43,0.85) 12%, rgba(139,90,43,0.85) 88%, rgba(139,90,43,0) 100%)",
                             boxShadow: "0 0 4px rgba(139, 90, 43, 0.5)",
                             zIndex: 0,
                             pointerEvents: "none",
@@ -158,7 +170,7 @@ export default function BigCassette({
                     />
                 </div>
 
-                {/* Bottom label — vertically aligned with the screws */}
+                {/* Bottom label — Space Mono, matches prototype */}
                 <div
                     style={{
                         position: "absolute",
@@ -166,7 +178,7 @@ export default function BigCassette({
                         right: 0,
                         top: 138,
                         height: 12,
-                        fontFamily: gameTheme.font.display,
+                        fontFamily: gameTheme.font.mono,
                         fontSize: 9,
                         color: gameTheme.color.ink,
                         letterSpacing: "0.2em",
@@ -186,10 +198,16 @@ export default function BigCassette({
     );
 }
 
+/* --------------------------------------------------------------------- */
+
 interface ReelProps {
     playing: boolean;
 }
 
+/**
+ * Spinning reel with hub, three radial spokes and an accent rim.
+ * Spins clockwise while `playing` via the `gys-vinyl-spin` keyframe.
+ */
 function Reel({ playing }: ReelProps) {
     const accent = gameTheme.color.accent;
     const reelStyle: CSSProperties = {
@@ -204,7 +222,7 @@ function Reel({ playing }: ReelProps) {
         animation: playing ? "gys-vinyl-spin 1.6s linear infinite" : "none",
     };
     return (
-        <div style={reelStyle}>
+        <div style={reelStyle} aria-hidden="true">
             {[0, 60, 120].map((deg) => (
                 <div
                     key={deg}
@@ -237,14 +255,34 @@ function Reel({ playing }: ReelProps) {
     );
 }
 
+/* --------------------------------------------------------------------- */
+
 interface PlayPulseProps {
     playing: boolean;
     onToggle: () => void;
     disabled: boolean;
+    /** Diameter in px. Defaults to 66 to fit inside the cassette window. */
+    size?: number;
 }
 
-function PlayPulse({ playing, onToggle, disabled }: PlayPulseProps) {
+/**
+ * Glowing play / pause button with two pulsing rings while playing.
+ *
+ * Visual recipe (from Proposal C):
+ *  - Body: radial gradient from `accent` at the center fading to `bg` at 80%
+ *  - Ring: 3px solid accent + outer neon glow + inner shadow
+ *  - When playing: two `gys-pulse-ring` waves stagger 0.5s apart, scaling
+ *    1 → 1.6 with opacity 1 → 0
+ *  - Icon swaps between a chunky white play triangle and two pause bars
+ */
+export function PlayPulse({
+    playing,
+    onToggle,
+    disabled,
+    size = 66,
+}: PlayPulseProps) {
     const accent = gameTheme.color.accent;
+    const triSize = size * 0.3;
     return (
         <button
             type="button"
@@ -253,45 +291,96 @@ function PlayPulse({ playing, onToggle, disabled }: PlayPulseProps) {
             aria-label={playing ? "Pause song" : "Play song"}
             aria-pressed={playing}
             style={{
-                width: 66,
-                height: 66,
+                position: "relative",
+                width: size,
+                height: size,
                 borderRadius: "50%",
-                border: `2px solid ${accent}`,
-                background: playing
-                    ? `${accent}33`
-                    : "rgba(255,255,255,0.08)",
-                color: gameTheme.color.inkInverse,
+                border: "none",
+                background: `radial-gradient(circle at 50% 50%, ${accent}, ${gameTheme.color.bg} 80%)`,
+                boxShadow: `0 0 0 3px ${accent}, 0 0 30px ${accent}88, 0 0 60px ${accent}40, inset 0 0 20px rgba(0,0,0,0.4)`,
                 cursor: disabled ? "not-allowed" : "pointer",
                 opacity: disabled ? 0.5 : 1,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                boxShadow: playing
-                    ? `0 0 24px ${accent}, inset 0 0 12px ${accent}55`
-                    : `0 0 12px ${accent}55`,
-                transition: "box-shadow .2s, background .2s",
                 padding: 0,
+                transition: "transform .15s",
+            }}
+            onPointerDown={(e) => {
+                if (!disabled)
+                    e.currentTarget.style.transform = "scale(0.96)";
+            }}
+            onPointerUp={(e) => {
+                e.currentTarget.style.transform = "scale(1)";
+            }}
+            onPointerLeave={(e) => {
+                e.currentTarget.style.transform = "scale(1)";
             }}
         >
+            {/* Pulse rings — two waves staggered 0.5s for continuous emission */}
+            {playing && (
+                <>
+                    <div
+                        aria-hidden="true"
+                        style={{
+                            position: "absolute",
+                            inset: 0,
+                            borderRadius: "50%",
+                            border: `3px solid ${accent}`,
+                            animation:
+                                "gys-pulse-ring 1.4s ease-out infinite",
+                        }}
+                    />
+                    <div
+                        aria-hidden="true"
+                        style={{
+                            position: "absolute",
+                            inset: 0,
+                            borderRadius: "50%",
+                            border: `3px solid ${accent}`,
+                            animation:
+                                "gys-pulse-ring 1.4s ease-out 0.5s infinite",
+                        }}
+                    />
+                </>
+            )}
+
+            {/* Icon — pure CSS, no SVG, matches prototype */}
             {playing ? (
-                <svg
-                    width="22"
-                    height="22"
-                    viewBox="0 0 24 24"
+                <div
                     aria-hidden="true"
+                    style={{ display: "flex", gap: size * 0.09 }}
                 >
-                    <rect x="6" y="5" width="4" height="14" fill={accent} />
-                    <rect x="14" y="5" width="4" height="14" fill={accent} />
-                </svg>
+                    <div
+                        style={{
+                            width: size * 0.12,
+                            height: size * 0.55,
+                            background: "#fff",
+                            borderRadius: 2,
+                        }}
+                    />
+                    <div
+                        style={{
+                            width: size * 0.12,
+                            height: size * 0.55,
+                            background: "#fff",
+                            borderRadius: 2,
+                        }}
+                    />
+                </div>
             ) : (
-                <svg
-                    width="22"
-                    height="22"
-                    viewBox="0 0 24 24"
+                <div
                     aria-hidden="true"
-                >
-                    <path d="M8 5v14l11-7z" fill={accent} />
-                </svg>
+                    style={{
+                        width: 0,
+                        height: 0,
+                        borderLeft: `${triSize}px solid #fff`,
+                        borderTop: `${triSize * 0.66}px solid transparent`,
+                        borderBottom: `${triSize * 0.66}px solid transparent`,
+                        marginLeft: size * 0.07,
+                        filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.4))",
+                    }}
+                />
             )}
         </button>
     );
