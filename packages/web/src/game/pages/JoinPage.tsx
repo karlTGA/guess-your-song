@@ -1,29 +1,38 @@
-import { Alert, Button, Form, Input } from "antd";
+import { Alert } from "antd";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { joinSession } from "../../api";
+import { Confetti, GridBackground, NeonText } from "../components/arcade";
 import "../components/game.css";
 import { gameTheme } from "../components/theme";
 
 export default function JoinPage() {
+    const navigate = useNavigate();
+    const [code, setCode] = useState("");
+    const [playerName, setPlayerName] = useState("");
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
-    const navigate = useNavigate();
+    const [celebrate, setCelebrate] = useState(false);
 
-    const handleJoin = async (values: { code: string; playerName: string }) => {
+    const submit = async () => {
+        const cleanCode = code.trim().toUpperCase();
+        const cleanName = playerName.trim();
+        if (cleanCode.length !== 6 || !cleanName) {
+            setError("Enter a 6-character game code and your name.");
+            return;
+        }
         setError(null);
         setLoading(true);
         try {
-            const code = values.code.toUpperCase();
-            await joinSession(code, values.playerName);
-            localStorage.setItem("playerName", values.playerName);
-            localStorage.setItem("gameCode", code);
-            navigate(`/game/${code}/play`);
+            await joinSession(cleanCode, cleanName);
+            localStorage.setItem("playerName", cleanName);
+            localStorage.setItem("gameCode", cleanCode);
+            setCelebrate(true);
+            setTimeout(() => navigate(`/game/${cleanCode}/play`), 350);
         } catch (err) {
             setError(
                 err instanceof Error ? err.message : "Failed to join session",
             );
-        } finally {
             setLoading(false);
         }
     };
@@ -32,144 +41,198 @@ export default function JoinPage() {
         <div
             style={{
                 minHeight: "100vh",
-                background: gameTheme.color.bg,
+                position: "relative",
+                background: gameTheme.color.bgGradient,
                 color: gameTheme.color.inkInverse,
                 fontFamily: gameTheme.font.body,
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
                 justifyContent: "center",
-                padding: 24,
-                gap: 32,
+                padding: "60px 32px 40px",
+                overflow: "hidden",
             }}
         >
-            {/* Logo / title block */}
-            <div style={{ textAlign: "center" }}>
-                <div
-                    style={{
-                        fontFamily: gameTheme.font.display,
-                        fontSize: 14,
-                        letterSpacing: "0.3em",
-                        color: gameTheme.color.accent,
-                        marginBottom: 8,
-                    }}
-                >
-                    SIDE A · TRACK 01
-                </div>
-                <h1
-                    style={{
-                        fontFamily: gameTheme.font.display,
-                        fontSize: 36,
-                        margin: 0,
-                        letterSpacing: "0.05em",
-                        textShadow: `0 0 24px ${gameTheme.color.accent}66`,
-                    }}
-                >
-                    GUESS YOUR SONG
-                </h1>
-                <div
-                    style={{
-                        marginTop: 8,
-                        color: gameTheme.color.muted,
-                        fontSize: 13,
-                        letterSpacing: "0.1em",
-                    }}
-                >
-                    listen · place · score
-                </div>
-            </div>
+            <GridBackground color={gameTheme.color.accent} opacity={0.22} />
+            {celebrate && <Confetti active />}
 
-            {/* Cassette-styled card holding the join form */}
             <div
                 style={{
+                    position: "relative",
+                    zIndex: 2,
                     width: "100%",
-                    maxWidth: 380,
-                    background: gameTheme.color.bgElevated,
-                    border: `2px solid ${gameTheme.color.accent}33`,
-                    borderRadius: gameTheme.radius.lg,
-                    padding: 24,
-                    boxShadow: `0 0 40px ${gameTheme.color.accent}22`,
+                    maxWidth: 420,
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 28,
                 }}
             >
-                {error && (
-                    <Alert
-                        message={error}
-                        type="error"
-                        style={{ marginBottom: 16 }}
-                    />
-                )}
-                <Form layout="vertical" onFinish={handleJoin}>
-                    <Form.Item
-                        label={
-                            <span
-                                style={{
-                                    color: gameTheme.color.muted,
-                                    fontFamily: gameTheme.font.display,
-                                    fontSize: 11,
-                                    letterSpacing: "0.15em",
-                                }}
-                            >
-                                GAME CODE
-                            </span>
-                        }
-                        name="code"
-                        rules={[
-                            { required: true, message: "Enter the game code" },
-                        ]}
+                {/* Wordmark */}
+                <div style={{ textAlign: "center" }}>
+                    <NeonText
+                        color={gameTheme.color.neonPink}
+                        size={48}
+                        flicker
                     >
-                        <Input
-                            placeholder="6-CHAR CODE"
-                            maxLength={6}
-                            size="large"
-                            style={{
-                                textTransform: "uppercase",
-                                letterSpacing: "0.2em",
-                                fontFamily: gameTheme.font.display,
-                                fontSize: 20,
-                                textAlign: "center",
-                            }}
+                        GUESS
+                    </NeonText>
+                    <div style={{ height: 6 }} />
+                    <NeonText color={gameTheme.color.neonCyan} size={48}>
+                        YOUR SONG
+                    </NeonText>
+                    <div
+                        style={{
+                            marginTop: 18,
+                            fontFamily: gameTheme.font.mono,
+                            color: "rgba(255,255,255,0.7)",
+                            fontSize: 13,
+                            letterSpacing: "0.1em",
+                            lineHeight: 1.6,
+                        }}
+                    >
+                        LISTEN. PLACE ON THE TIMELINE.
+                        <br />
+                        SCORE TO WIN.
+                    </div>
+                </div>
+
+                {/* Form panel */}
+                <form
+                    onSubmit={(e) => {
+                        e.preventDefault();
+                        void submit();
+                    }}
+                    style={{
+                        width: "100%",
+                        background: "rgba(10,14,39,0.55)",
+                        border: `2px solid ${gameTheme.color.accent}33`,
+                        borderRadius: gameTheme.radius.lg,
+                        padding: 22,
+                        boxShadow: `0 0 40px ${gameTheme.color.accent}22, inset 0 0 0 1px rgba(255,255,255,0.04)`,
+                        backdropFilter: "blur(6px)",
+                    }}
+                >
+                    {error && (
+                        <Alert
+                            message={error}
+                            type="error"
+                            showIcon
+                            style={{ marginBottom: 16 }}
                         />
-                    </Form.Item>
-                    <Form.Item
-                        label={
-                            <span
-                                style={{
-                                    color: gameTheme.color.muted,
-                                    fontFamily: gameTheme.font.display,
-                                    fontSize: 11,
-                                    letterSpacing: "0.15em",
-                                }}
-                            >
-                                YOUR NAME
-                            </span>
-                        }
+                    )}
+
+                    <FieldLabel htmlFor="gys-code">GAME CODE</FieldLabel>
+                    <input
+                        id="gys-code"
+                        name="code"
+                        autoComplete="off"
+                        maxLength={6}
+                        value={code}
+                        onChange={(e) => setCode(e.target.value.toUpperCase())}
+                        placeholder="6-CHAR CODE"
+                        style={{
+                            ...inputStyle,
+                            textAlign: "center",
+                            fontFamily: gameTheme.font.display,
+                            fontSize: 22,
+                            letterSpacing: "0.3em",
+                        }}
+                    />
+
+                    <div style={{ height: 14 }} />
+
+                    <FieldLabel htmlFor="gys-name">YOUR NAME</FieldLabel>
+                    <input
+                        id="gys-name"
                         name="playerName"
-                        rules={[{ required: true, message: "Enter your name" }]}
+                        autoComplete="off"
+                        value={playerName}
+                        onChange={(e) => setPlayerName(e.target.value)}
+                        placeholder="Your name"
+                        style={inputStyle}
+                    />
+
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        style={{
+                            marginTop: 22,
+                            width: "100%",
+                            background: `linear-gradient(135deg, ${gameTheme.color.accent}, ${gameTheme.color.neonCyan})`,
+                            color: gameTheme.color.ink,
+                            fontFamily: gameTheme.font.display,
+                            fontWeight: 900,
+                            fontSize: 20,
+                            letterSpacing: "0.18em",
+                            padding: "18px 32px",
+                            border: "none",
+                            borderRadius: gameTheme.radius.md,
+                            boxShadow: `0 0 0 3px ${gameTheme.color.accent}, 0 8px 0 ${gameTheme.color.bg}, 0 8px 30px ${gameTheme.color.accent}88`,
+                            cursor: loading ? "wait" : "pointer",
+                            opacity: loading ? 0.7 : 1,
+                            transition: "transform .1s",
+                        }}
                     >
-                        <Input placeholder="Your name" size="large" />
-                    </Form.Item>
-                    <Form.Item style={{ marginBottom: 0 }}>
-                        <Button
-                            type="primary"
-                            htmlType="submit"
-                            block
-                            size="large"
-                            loading={loading}
-                            style={{
-                                background: gameTheme.color.accent,
-                                color: gameTheme.color.ink,
-                                borderColor: gameTheme.color.accent,
-                                fontWeight: 700,
-                                fontFamily: gameTheme.font.display,
-                                letterSpacing: "0.15em",
-                                height: 52,
-                            }}
-                        >
-                            ▶ JOIN GAME
-                        </Button>
-                    </Form.Item>
-                </Form>
+                        ▶ {loading ? "JOINING…" : "JOIN GAME"}
+                    </button>
+                </form>
+
+                {/* Footer ticker */}
+                <div
+                    style={{
+                        width: "100%",
+                        borderTop: `1px dashed ${gameTheme.color.accent}66`,
+                        paddingTop: 12,
+                        display: "flex",
+                        justifyContent: "space-between",
+                        fontFamily: gameTheme.font.mono,
+                        fontSize: 10,
+                        color: "rgba(255,255,255,0.45)",
+                        letterSpacing: "0.18em",
+                    }}
+                >
+                    <span>SIDE A · TRACK 01</span>
+                    <span>INSERT COIN</span>
+                </div>
             </div>
         </div>
     );
 }
+
+function FieldLabel({
+    children,
+    htmlFor,
+}: {
+    children: React.ReactNode;
+    htmlFor: string;
+}) {
+    return (
+        <label
+            htmlFor={htmlFor}
+            style={{
+                display: "block",
+                marginBottom: 6,
+                fontFamily: gameTheme.font.mono,
+                fontSize: 11,
+                color: gameTheme.color.muted,
+                letterSpacing: "0.18em",
+            }}
+        >
+            {children}
+        </label>
+    );
+}
+
+const inputStyle: React.CSSProperties = {
+    width: "100%",
+    background: "rgba(255,255,255,0.06)",
+    border: "1.5px solid rgba(255,255,255,0.18)",
+    borderRadius: 8,
+    padding: "12px 14px",
+    color: "#fff",
+    fontFamily: "inherit",
+    fontSize: 15,
+    outline: "none",
+    boxSizing: "border-box",
+};
