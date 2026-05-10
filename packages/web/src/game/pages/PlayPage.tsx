@@ -4,7 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { getGameState, placeSong, skipSong } from "../../api";
 import BigCassette from "../components/BigCassette";
 import { GridBackground } from "../components/arcade";
-import PlacedCard, { type PlacedSong } from "../components/PlacedCard";
+import type { PlacedSong } from "../components/PlacedCard";
 import RevealOverlay from "../components/RevealOverlay";
 import { SFX } from "../components/sfx";
 import TimelineStrip from "../components/TimelineStrip";
@@ -128,10 +128,21 @@ export default function PlayPage() {
     const togglePlay = () => {
         SFX.click();
         const el = audioRef.current;
-        if (!el) return;
+        if (!el) {
+            // No audio element — still flip the visual state so reels spin
+            // and the play button glows. Useful in test/preview environments
+            // where there's no real audio file mounted yet.
+            setPlaying((p) => !p);
+            return;
+        }
         if (el.paused) {
+            // Optimistically show the playing state so reels start spinning
+            // immediately. If play() rejects (autoplay blocked, missing src,
+            // CORS, …) we revert in the catch below — otherwise the `play`
+            // event listener takes over and the optimistic flip is a no-op.
+            setPlaying(true);
             void el.play().catch(() => {
-                /* autoplay blocked or src missing */
+                setPlaying(false);
             });
         } else {
             el.pause();
@@ -221,22 +232,15 @@ export default function PlayPage() {
         ? `/audio/${currentRound.audioFilename}`
         : undefined;
 
-    // The mystery card — keeping current "???" title/artist styling per the
-    // user's preference; the card itself adds the year-hidden ???? badge.
-    const mysterySong: PlacedSong | null = currentRound
-        ? {
-              id: currentRound.songId,
-              title: "???",
-              artist: "???",
-              year: 0,
-              thumbnailFilename: currentRound.thumbnailFilename,
-          }
-        : null;
-
     return (
         <div
             style={{
+                // Use dynamic viewport so mobile browser chrome (URL bar /
+                // toolbar) doesn't push the DROP IT button below the fold.
+                // Falls back to 100vh on browsers without dvh support.
+                height: "100dvh",
                 minHeight: "100vh",
+                maxHeight: "100dvh",
                 position: "relative",
                 background: gameTheme.color.bgGradient,
                 color: gameTheme.color.inkInverse,
@@ -271,15 +275,18 @@ export default function PlayPage() {
                 />
             </header>
 
-            {/* Cassette + audio + framing copy */}
+            {/* Cassette + audio + framing copy.
+                flex: 0 0 auto so this block stays sized to its content;
+                the timeline footer takes all remaining vertical space. */}
             <main
                 style={{
+                    flex: "0 0 auto",
                     position: "relative",
                     zIndex: 2,
                     display: "flex",
                     flexDirection: "column",
                     alignItems: "center",
-                    padding: "10px 16px 14px",
+                    padding: "6px 16px 8px",
                 }}
             >
                 {hasAudio && audioSrc && !audioError && (
@@ -366,7 +373,7 @@ export default function PlayPage() {
             </main>
 
             {/* TargetDots — score progress out of totalRounds */}
-            <div style={{ position: "relative", zIndex: 2 }}>
+            <div style={{ flex: "0 0 auto", position: "relative", zIndex: 2 }}>
                 <TargetDots
                     score={player.score}
                     target={totalRounds}
@@ -374,13 +381,22 @@ export default function PlayPage() {
                 />
             </div>
 
-            {/* Timeline */}
+            {/* Timeline.
+                flex: 1 so it absorbs all remaining vertical space, but the
+                strip itself is intrinsically sized — justifyContent: flex-end
+                pushes it (and the DROP IT button) to the bottom of the
+                viewport on tall screens, and the inner padding shrinks so
+                everything fits on short screens.
+                minHeight: 0 lets the flex child actually shrink. */}
             <footer
                 style={{
                     position: "relative",
                     zIndex: 2,
-                    flex: 1,
-                    padding: "8px 0 24px",
+                    flex: "1 1 auto",
+                    minHeight: 0,
+                    // Generous bottom padding so DROP IT sits above the home
+                    // indicator / browser chrome rather than hugging the edge.
+                    padding: "4px 0 max(32px, env(safe-area-inset-bottom, 32px))",
                     display: "flex",
                     flexDirection: "column",
                     justifyContent: "flex-end",
@@ -393,17 +409,7 @@ export default function PlayPage() {
                     onPickPosition={handlePickPosition}
                     onConfirm={handleConfirm}
                     disabled={submitting || !hasAudio || !!reveal}
-                    mysteryCard={
-                        mysterySong ? (
-                            <div style={{ width: 80 }}>
-                                <PlacedCard
-                                    song={mysterySong}
-                                    size="sm"
-                                    isMystery
-                                />
-                            </div>
-                        ) : null
-                    }
+                    mysteryCard={null}
                 />
             </footer>
 

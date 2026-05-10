@@ -14,6 +14,13 @@ interface PlacedCardProps {
     song: PlacedSong;
     /** Compact mode (in-timeline) vs hero mode (results page). */
     size?: "sm" | "lg";
+    /**
+     * Optional explicit width/height. When provided, internal artwork,
+     * padding and font sizes scale proportionally to the size preset's
+     * base dimensions. Useful for fluid sizing in TimelineStrip.
+     */
+    width?: number;
+    height?: number;
     /** Visually highlight (e.g. just-placed). */
     highlight?: boolean;
     /**
@@ -30,11 +37,25 @@ interface PlacedCardProps {
 export default function PlacedCard({
     song,
     size = "sm",
+    width,
+    height,
     highlight = false,
     isMystery = false,
 }: PlacedCardProps) {
-    const w = size === "lg" ? 132 : 96;
-    const h = size === "lg" ? 168 : 124;
+    const baseW = size === "lg" ? 132 : 96;
+    const baseH = size === "lg" ? 168 : 124;
+    const w = width ?? baseW;
+    const h = height ?? baseH;
+    const scale = h / baseH;
+    const artworkH = Math.round((size === "lg" ? 100 : 70) * scale);
+    const titlePadX = Math.round((size === "lg" ? 12 : 8) * scale);
+    const titlePadY = Math.round((size === "lg" ? 10 : 6) * scale);
+    const titleSize = Math.round((size === "lg" ? 13 : 10) * scale);
+    const artistSize = Math.round((size === "lg" ? 11 : 9) * scale);
+    const yearSize = Math.round((size === "lg" ? 14 : 11));
+    const yearPadY = Math.max(2, Math.round(3 * scale));
+    const yearPadX = Math.max(5, Math.round(8 * scale));
+    const yearOffset = Math.max(4, Math.round(6 * scale));
     const thumbSrc =
         !isMystery && song.thumbnailFilename
             ? `/thumbnails/${song.thumbnailFilename}`
@@ -54,15 +75,12 @@ export default function PlacedCard({
         position: "relative",
         overflow: "hidden",
         flexShrink: 0,
-        transform: isMystery
-            ? "rotate(-3deg)"
-            : highlight
-              ? "translateY(-2px)"
-              : "none",
+        transform: "rotate(-3deg)",
         transition: "transform .25s, box-shadow .25s",
         display: "flex",
         flexDirection: "column",
-        border: isMystery ? `2px solid ${gameTheme.color.bg}` : "none",
+        border: `2px solid ${gameTheme.color.bg}`,
+        margin: 0,
     };
 
     return (
@@ -78,16 +96,16 @@ export default function PlacedCard({
             <div
                 style={{
                     position: "absolute",
-                    top: 6,
-                    right: 6,
+                    top: yearOffset,
+                    right: yearOffset,
                     background: gameTheme.color.bg,
                     color: isMystery
                         ? gameTheme.color.neonYellow
                         : gameTheme.color.accent,
                     fontFamily: gameTheme.font.display,
-                    fontSize: size === "lg" ? 14 : 11,
+                    fontSize: yearSize,
                     fontWeight: 700,
-                    padding: "3px 8px",
+                    padding: `${yearPadY}px ${yearPadX}px`,
                     borderRadius: gameTheme.radius.pill,
                     letterSpacing: "0.05em",
                     zIndex: 2,
@@ -100,7 +118,7 @@ export default function PlacedCard({
             <div
                 style={{
                     width: "100%",
-                    height: size === "lg" ? 100 : 70,
+                    height: artworkH,
                     background: gameTheme.color.bg,
                     flexShrink: 0,
                     position: "relative",
@@ -114,8 +132,8 @@ export default function PlacedCard({
                         src={thumbSrc}
                         alt={`${song.title} thumbnail`}
                         style={{
-                            width: "100%",
                             height: "100%",
+                            aspectRatio: "1",
                             objectFit: "cover",
                             display: "block",
                         }}
@@ -140,7 +158,7 @@ export default function PlacedCard({
             {/* Title + artist */}
             <div
                 style={{
-                    padding: size === "lg" ? "10px 12px" : "6px 8px",
+                    padding: `${titlePadY}px ${titlePadX}px`,
                     flex: 1,
                     display: "flex",
                     flexDirection: "column",
@@ -152,7 +170,7 @@ export default function PlacedCard({
                     <div
                         style={{
                             fontFamily: gameTheme.font.mono,
-                            fontSize: 9,
+                            fontSize: Math.round(9 * scale),
                             color: gameTheme.color.neonYellow,
                             letterSpacing: "0.2em",
                             textAlign: "center",
@@ -165,7 +183,7 @@ export default function PlacedCard({
                     <>
                         <div
                             style={{
-                                fontSize: size === "lg" ? 13 : 10,
+                                fontSize: titleSize,
                                 fontWeight: 700,
                                 lineHeight: 1.2,
                                 overflow: "hidden",
@@ -179,7 +197,7 @@ export default function PlacedCard({
                         </div>
                         <div
                             style={{
-                                fontSize: size === "lg" ? 11 : 9,
+                                fontSize: artistSize,
                                 opacity: 0.65,
                                 marginTop: 2,
                                 overflow: "hidden",

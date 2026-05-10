@@ -2,7 +2,6 @@ import {
     type CSSProperties,
     type PointerEvent as ReactPointerEvent,
     type ReactNode,
-    useCallback,
     useEffect,
     useMemo,
     useRef,
@@ -32,10 +31,13 @@ interface TimelineStripProps {
     mysteryCard?: ReactNode | null;
 }
 
-const GAP_WIDTH = 56;
-const CARD_WIDTH = 96;
-const CARD_HEIGHT = 132;
-const STRIP_HEIGHT = CARD_HEIGHT + 60;
+const MIN_CARD_HEIGHT = 132;
+const MAX_CARD_HEIGHT = 200;
+// Aspect ratio matches the "sm" preset in PlacedCard (96 / 124).
+const CARD_ASPECT = 96 / 124;
+// Active gap inner has 12px of margin on each side of the dashed indicator
+// so the lime glow does not bleed into adjacent card edges.
+const GAP_INNER_MARGIN = 12;
 
 /**
  * Horizontal timeline that DRAGS UNDER A FIXED CENTER POINTER.
@@ -64,6 +66,7 @@ export default function TimelineStrip({
 }: TimelineStripProps) {
     const viewportRef = useRef<HTMLDivElement>(null);
     const [viewportW, setViewportW] = useState(360);
+    const [viewportH, setViewportH] = useState(MIN_CARD_HEIGHT + 40);
 
     // Sort timeline by year ascending — server may send placements out of
     // order, but we always render chronologically.
@@ -73,28 +76,41 @@ export default function TimelineStrip({
     );
     const gapCount = sorted.length + 1;
 
-    // Measure viewport so we can center the active gap precisely.
+    // Measure viewport so we can center the active gap precisely AND scale
+    // the cards up to fill tall screens.
     useEffect(() => {
         const el = viewportRef.current;
         if (!el) return;
-        const measure = () => setViewportW(el.clientWidth);
+        const measure = () => {
+            setViewportW(el.clientWidth);
+            setViewportH(el.clientHeight);
+        };
         measure();
         const ro = new ResizeObserver(measure);
         ro.observe(el);
         return () => ro.disconnect();
     }, []);
 
+    // Cards grow to fill the available vertical space (clamped). Width and
+    // gap width derive from card height so the whole strip scales together.
+    const cardH = Math.max(
+        MIN_CARD_HEIGHT,
+        Math.min(MAX_CARD_HEIGHT, viewportH - 30),
+    );
+    const cardW = Math.round(cardH * CARD_ASPECT);
+    const gapW = Math.round(cardW * 0.6);
+
     /** Pixel center of each gap, measured along the strip itself. */
     const gapCenters = useMemo(() => {
         const centers: number[] = [];
         let x = 0;
         for (let i = 0; i < gapCount; i++) {
-            centers.push(x + GAP_WIDTH / 2);
-            x += GAP_WIDTH;
-            if (i < sorted.length) x += CARD_WIDTH;
+            centers.push(x + gapW / 2);
+            x += gapW;
+            if (i < sorted.length) x += cardW;
         }
         return centers;
-    }, [gapCount, sorted.length]);
+    }, [gapCount, sorted.length, gapW, cardW]);
 
     // Pointer-drag state. dragX is the live offset added on top of the
     // resting (snapped) translateX.
@@ -159,7 +175,15 @@ export default function TimelineStrip({
 
     return (
         <div
-            style={{ width: "100%", position: "relative", userSelect: "none" }}
+            style={{
+                width: "100%",
+                position: "relative",
+                userSelect: "none",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "flex-end",
+                height: "100%",
+            }}
         >
             {/* Year-range labels */}
             <div
@@ -178,7 +202,9 @@ export default function TimelineStrip({
                 <span>LATER ▶</span>
             </div>
 
-            {/* Strip viewport — fixed width, the track inside slides under it. */}
+            {/* Strip viewport — grows to fill the available space inside
+                the footer; the cards are intrinsically sized so vertical
+                slack becomes empty grid floor + glow rather than dead gap. */}
             {/** biome-ignore lint/a11y/useSemanticElements: composite drag region */}
             <div
                 ref={viewportRef}
@@ -195,7 +221,8 @@ export default function TimelineStrip({
                 onKeyDown={onKeyDown}
                 style={{
                     position: "relative",
-                    height: STRIP_HEIGHT,
+                    flex: "1 1 auto",
+                    minHeight: MIN_CARD_HEIGHT + 30,
                     overflow: "hidden",
                     touchAction: "none",
                     cursor: dragging ? "grabbing" : disabled ? "default" : "grab",
@@ -234,15 +261,18 @@ export default function TimelineStrip({
                     }}
                 />
 
-                {/* Sliding track */}
+                {/* Sliding track — vertically centered in the (now flexible)
+                    viewport so extra height shows up as glow above/below the
+                    cards rather than a gap above. */}
                 <div
                     style={{
                         position: "absolute",
-                        top: 20,
+                        top: "50%",
                         left: 0,
+                        marginTop: -cardH / 2,
                         display: "flex",
                         alignItems: "center",
-                        height: CARD_HEIGHT,
+                        height: cardH,
                         transform: `translateX(${liveOffset}px)`,
                         transition: dragging
                             ? "none"
@@ -252,6 +282,7 @@ export default function TimelineStrip({
                 >
                     <Gap
                         active={pendingPosition === 0}
+                        width={gapW}
                         onTap={() => !disabled && onPickPosition(0)}
                     />
                     {sorted.map((song, i) => (
@@ -259,11 +290,17 @@ export default function TimelineStrip({
                             key={song.id}
                             style={{ display: "contents" }}
                         >
-                            <div style={{ width: CARD_WIDTH, flexShrink: 0 }}>
-                                <PlacedCard song={song} size="sm" />
+                            <div style={{ width: cardW, flexShrink: 0 }}>
+                                <PlacedCard
+                                    song={song}
+                                    size="sm"
+                                    width={cardW}
+                                    height={cardH}
+                                />
                             </div>
                             <Gap
                                 active={pendingPosition === i + 1}
+                                width={gapW}
                                 onTap={() =>
                                     !disabled && onPickPosition(i + 1)
                                 }
@@ -296,9 +333,10 @@ export default function TimelineStrip({
             {/* DROP IT button */}
             <div
                 style={{
-                    padding: "14px 24px 0",
+                    padding: "10px 24px 0",
                     display: "flex",
                     justifyContent: "center",
+                    flexShrink: 0,
                 }}
             >
                 <button
@@ -313,7 +351,7 @@ export default function TimelineStrip({
                         fontWeight: 900,
                         fontSize: 16,
                         letterSpacing: "0.2em",
-                        padding: "14px 48px",
+                        padding: "12px 48px",
                         border: "none",
                         borderRadius: gameTheme.radius.md,
                         boxShadow: `0 5px 0 ${gameTheme.color.bg}, 0 5px 24px ${gameTheme.color.accent}aa`,
@@ -333,21 +371,24 @@ export default function TimelineStrip({
 
 interface GapProps {
     active: boolean;
+    width: number;
     onTap: () => void;
 }
 
-function Gap({ active, onTap }: GapProps) {
+function Gap({ active, width, onTap }: GapProps) {
     const accent = gameTheme.color.accent;
     const wrap: CSSProperties = {
-        width: GAP_WIDTH,
+        width,
         flexShrink: 0,
         height: "100%",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
+        position: "relative",
+        zIndex: active ? 2 : 0,
     };
     const inner: CSSProperties = {
-        width: GAP_WIDTH - 14,
+        width: Math.max(24, width - GAP_INNER_MARGIN * 2),
         height: "85%",
         borderRadius: gameTheme.radius.md,
         border: `2px dashed ${active ? accent : "rgba(255,255,255,0.18)"}`,
@@ -356,6 +397,8 @@ function Gap({ active, onTap }: GapProps) {
             ? `0 0 14px ${accent}66, inset 0 0 14px ${accent}33`
             : "none",
         transition: "all .2s",
+        position: "relative",
+        zIndex: active ? 2 : 0,
     };
     return (
         // biome-ignore lint/a11y/useSemanticElements: drag region wraps these
