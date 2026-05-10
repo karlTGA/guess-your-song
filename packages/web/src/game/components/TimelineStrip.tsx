@@ -121,43 +121,98 @@ export default function TimelineStrip({
 
     /** Where the strip wants to sit so the active gap is under the center. */
     const restingOffset = viewportW / 2 - (gapCenters[pendingPosition] ?? 0);
-    const liveOffset = dragging ? baseOffset.current + dragX : restingOffset;
+    // Boundaries: the strip should rest between "first gap centered" (max
+    // offset) and "last gap centered" (min offset). During an active drag we
+    // allow some over-pull past these with rubber-band resistance so the
+    // user gets visual feedback that they're past the end.
+    const maxOffset = viewportW / 2 - (gapCenters[0] ?? 0);
+    const minOffset =
+        viewportW / 2 - (gapCenters[gapCenters.length - 1] ?? 0);
+    const RUBBER = 0.35;
+    let liveOffset = restingOffset;
+    if (dragging) {
+        const raw = baseOffset.current + dragX;
+        if (raw > maxOffset) {
+            liveOffset = maxOffset + (raw - maxOffset) * RUBBER;
+        } else if (raw < minOffset) {
+            liveOffset = minOffset + (raw - minOffset) * RUBBER;
+        } else {
+            liveOffset = raw;
+        }
+    }
 
     const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
         if (disabled) return;
         // Only react to primary button / first touch.
         if (e.button !== undefined && e.button !== 0) return;
-        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        // setPointerCapture keeps the pointer events flowing on touch even if
+        // the user's finger drifts off the strip. We *also* attach window
+        // listeners (see effect below) so dev-tools mobile simulation — where
+        // the mouse can leave the OS browser window without firing a synthetic
+        // pointerup — still terminates the drag cleanly.
+        try {
+            (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        } catch {
+            /* capture can fail in some simulators; the window listener is the
+             * fallback, so swallow and keep going. */
+        }
         setDragging(true);
         startClientX.current = e.clientX;
         baseOffset.current = restingOffset;
         setDragX(0);
     };
 
-    const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    // While a drag is active, listen on the window so we keep tracking even
+    // when the pointer leaves the strip (or, in dev-tools touch simulation,
+    // leaves the browser window entirely). pointerup/pointercancel anywhere
+    // ends the drag; loss of window focus or the pointer leaving the document
+    // also aborts so we never get stuck in a "still dragging" state.
+    useEffect(() => {
         if (!dragging) return;
-        setDragX(e.clientX - startClientX.current);
-    };
 
-    const onPointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
-        if (!dragging) return;
-        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-        setDragging(false);
-        // Snap to nearest gap based on what is now under the center line.
-        const finalOffset = baseOffset.current + dragX;
-        const targetCenter = viewportW / 2 - finalOffset;
-        let nearest = 0;
-        let best = Number.POSITIVE_INFINITY;
-        gapCenters.forEach((cx, i) => {
-            const d = Math.abs(cx - targetCenter);
-            if (d < best) {
-                best = d;
-                nearest = i;
-            }
-        });
-        setDragX(0);
-        if (nearest !== pendingPosition) onPickPosition(nearest);
-    };
+        const finishDrag = (finalDx: number) => {
+            setDragging(false);
+            setDragX(0);
+            const finalOffset = baseOffset.current + finalDx;
+            const targetCenter = viewportW / 2 - finalOffset;
+            let nearest = 0;
+            let best = Number.POSITIVE_INFINITY;
+            gapCenters.forEach((cx, i) => {
+                const d = Math.abs(cx - targetCenter);
+                if (d < best) {
+                    best = d;
+                    nearest = i;
+                }
+            });
+            if (nearest !== pendingPosition) onPickPosition(nearest);
+        };
+
+        const handleMove = (e: PointerEvent) => {
+            setDragX(e.clientX - startClientX.current);
+        };
+        const handleEnd = (e: PointerEvent) => {
+            finishDrag(e.clientX - startClientX.current);
+        };
+        const handleAbort = () => finishDrag(0);
+
+        window.addEventListener("pointermove", handleMove);
+        window.addEventListener("pointerup", handleEnd);
+        window.addEventListener("pointercancel", handleEnd);
+        // Pointer leaves the page (e.g., off the top of the browser viewport
+        // in dev-tools mobile mode). No further pointer events will arrive,
+        // so abort the drag.
+        document.addEventListener("mouseleave", handleAbort);
+        // Tab/window loses focus while held — also abort.
+        window.addEventListener("blur", handleAbort);
+
+        return () => {
+            window.removeEventListener("pointermove", handleMove);
+            window.removeEventListener("pointerup", handleEnd);
+            window.removeEventListener("pointercancel", handleEnd);
+            document.removeEventListener("mouseleave", handleAbort);
+            window.removeEventListener("blur", handleAbort);
+        };
+    }, [dragging, viewportW, gapCenters, pendingPosition, onPickPosition]);
 
     const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
         if (disabled) return;
@@ -215,9 +270,6 @@ export default function TimelineStrip({
                 aria-valuenow={pendingPosition}
                 tabIndex={disabled ? -1 : 0}
                 onPointerDown={onPointerDown}
-                onPointerMove={onPointerMove}
-                onPointerUp={onPointerUp}
-                onPointerCancel={onPointerUp}
                 onKeyDown={onKeyDown}
                 style={{
                     position: "relative",
@@ -408,11 +460,6 @@ function Gap({ active, width, onTap }: GapProps) {
             tabIndex={-1}
             aria-label="Place here"
             aria-pressed={active}
-            onPointerDown={(e) => {
-                // Don't initiate strip-drag from a tap-pick; let the click
-                // through and stop the drag handler from grabbing this.
-                e.stopPropagation();
-            }}
             onClick={onTap}
         >
             <div style={inner} />

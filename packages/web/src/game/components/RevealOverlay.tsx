@@ -7,7 +7,7 @@ interface RevealOverlayProps {
     correct: boolean;
     song: PlacedSong;
     onDismiss: () => void;
-    /** ms before auto-dismiss. Default 1800. Set to 0 to disable. */
+    /** ms before auto-dismiss. Default 4000. Set to 0 to disable. */
     autoDismissAfter?: number;
 }
 
@@ -16,13 +16,13 @@ interface RevealOverlayProps {
  *   1. CORRECT / WRONG verdict in big neon type
  *   2. Year card flips in (rotateX 90→0) with the song's year + title + artist
  *   3. Confetti burst on correct answers
- *   4. Auto-dismisses after 1.8s, or on tap, or via the NEXT button
+ *   4. Auto-dismisses after 4s, or on tap, or via the NEXT button
  */
 export default function RevealOverlay({
     correct,
     song,
     onDismiss,
-    autoDismissAfter = 1800,
+    autoDismissAfter = 4000,
 }: RevealOverlayProps) {
     useEffect(() => {
         if (autoDismissAfter <= 0) return;

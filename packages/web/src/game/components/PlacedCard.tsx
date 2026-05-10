@@ -133,7 +133,6 @@ export default function PlacedCard({
                         alt={`${song.title} thumbnail`}
                         style={{
                             height: "100%",
-                            aspectRatio: "1",
                             objectFit: "cover",
                             display: "block",
                         }}
