@@ -18,6 +18,7 @@ declare module "fastify" {
     interface FastifyInstance {
         storageService: StorageService;
         thumbnailStorageService: StorageService;
+        acoustidApiKey?: string;
     }
 }
 
@@ -38,6 +39,8 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
         path.join(config.uploadDir, "thumbnails"),
     );
     app.decorate("thumbnailStorageService", thumbnailStorageService);
+
+    app.decorate("acoustidApiKey", config.acoustidApiKey);
 
     app.addHook("onClose", async () => {
         if (!wasConnected) {

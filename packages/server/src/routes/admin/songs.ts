@@ -4,6 +4,11 @@ import { parseBuffer } from "music-metadata";
 import { PlaylistModel } from "../../models/Playlist";
 import { SongModel } from "../../models/Song";
 import { authenticate } from "../../plugins/auth";
+import {
+    FpcalcMissingError,
+    fingerprintAudio,
+    lookupAcoustid,
+} from "../../services/acoustidService";
 
 export async function songRoutes(app: FastifyInstance) {
     app.addHook("onRequest", authenticate);
@@ -91,10 +96,13 @@ export async function songRoutes(app: FastifyInstance) {
             data.filename,
         );
 
-        // Auto-extract thumbnail from album art
         let thumbnailFilename: string | undefined;
+        let duration: number | undefined;
         try {
             const metadata = await parseBuffer(fileBuffer);
+            if (metadata.format.duration) {
+                duration = metadata.format.duration;
+            }
             if (metadata.common.picture && metadata.common.picture.length > 0) {
                 const pic = metadata.common.picture[0];
                 const ext =
@@ -114,6 +122,7 @@ export async function songRoutes(app: FastifyInstance) {
             year: parseInt(fields.year, 10),
             audioFilename,
             thumbnailFilename,
+            duration,
         });
 
         return reply.status(201).send(song);
@@ -156,27 +165,26 @@ export async function songRoutes(app: FastifyInstance) {
 
         song.audioFilename = audioFilename;
 
-        // Auto-extract thumbnail from album art if song has no thumbnail
-        if (!song.thumbnailFilename) {
-            try {
-                const metadata = await parseBuffer(fileBuffer);
-                if (
-                    metadata.common.picture &&
-                    metadata.common.picture.length > 0
-                ) {
-                    const pic = metadata.common.picture[0];
-                    const ext =
-                        pic.format.split("/")[1]?.replace("jpeg", "jpg") ||
-                        "jpg";
-                    song.thumbnailFilename =
-                        await app.thumbnailStorageService.save(
-                            Buffer.from(pic.data),
-                            `cover.${ext}`,
-                        );
-                }
-            } catch {
-                // Ignore metadata extraction errors
+        try {
+            const metadata = await parseBuffer(fileBuffer);
+            if (metadata.format.duration) {
+                song.duration = metadata.format.duration;
             }
+            if (
+                !song.thumbnailFilename &&
+                metadata.common.picture &&
+                metadata.common.picture.length > 0
+            ) {
+                const pic = metadata.common.picture[0];
+                const ext =
+                    pic.format.split("/")[1]?.replace("jpeg", "jpg") || "jpg";
+                song.thumbnailFilename = await app.thumbnailStorageService.save(
+                    Buffer.from(pic.data),
+                    `cover.${ext}`,
+                );
+            }
+        } catch {
+            // Ignore metadata extraction errors
         }
 
         await song.save();
@@ -248,14 +256,28 @@ export async function songRoutes(app: FastifyInstance) {
     });
 
     app.get("/api/admin/songs/search-music", async (request, reply) => {
-        const { query } = request.query as { query?: string };
+        const { query, duration } = request.query as {
+            query?: string;
+            duration?: string;
+        };
         if (!query?.trim()) {
             return reply
                 .status(400)
                 .send({ error: "query parameter is required" });
         }
 
-        const url = `https://musicbrainz.org/ws/2/recording?query=${encodeURIComponent(query)}&fmt=json&limit=10`;
+        // ±3s tolerance — wide enough to cover encoder/edit drift, tight enough
+        // to exclude single/album/remix variants of the same recording.
+        let mbQuery = query.trim();
+        const durationSec = duration ? Number.parseFloat(duration) : NaN;
+        if (Number.isFinite(durationSec) && durationSec > 0) {
+            const ms = Math.round(durationSec * 1000);
+            const lower = Math.max(0, ms - 3000);
+            const upper = ms + 3000;
+            mbQuery = `(${mbQuery}) AND dur:[${lower} TO ${upper}]`;
+        }
+
+        const url = `https://musicbrainz.org/ws/2/recording?query=${encodeURIComponent(mbQuery)}&fmt=json&limit=25`;
         const response = await fetch(url, {
             headers: {
                 "User-Agent": "GuessYourSong/1.0 (music-guessing-game)",
@@ -298,6 +320,55 @@ export async function songRoutes(app: FastifyInstance) {
 
         return reply.send(results);
     });
+
+    app.post(
+        "/api/admin/songs/:id/identify-acoustid",
+        async (request, reply) => {
+            if (!app.acoustidApiKey) {
+                return reply.status(503).send({
+                    error: "AcoustID is not configured. Set ACOUSTID_API_KEY.",
+                });
+            }
+
+            const { id } = request.params as { id: string };
+            const song = await SongModel.findById(id);
+            if (!song) {
+                return reply.status(404).send({ error: "Song not found" });
+            }
+            if (!song.audioFilename) {
+                return reply
+                    .status(400)
+                    .send({ error: "Song has no audio file" });
+            }
+
+            const audioPath = app.storageService.getPath(song.audioFilename);
+
+            let fp: Awaited<ReturnType<typeof fingerprintAudio>>;
+            try {
+                fp = await fingerprintAudio(audioPath);
+            } catch (err) {
+                if (err instanceof FpcalcMissingError) {
+                    return reply.status(503).send({ error: err.message });
+                }
+                request.log.error({ err }, "fpcalc failed");
+                return reply
+                    .status(500)
+                    .send({ error: "Failed to fingerprint audio" });
+            }
+
+            try {
+                const results = await lookupAcoustid(app.acoustidApiKey, fp);
+                return reply.send(results);
+            } catch (err) {
+                request.log.error({ err }, "AcoustID lookup failed");
+                const detail =
+                    err instanceof Error ? err.message : "unknown error";
+                return reply
+                    .status(502)
+                    .send({ error: `AcoustID lookup failed: ${detail}` });
+            }
+        },
+    );
 
     app.post("/api/admin/songs/:id/cover-art", async (request, reply) => {
         const { id } = request.params as { id: string };

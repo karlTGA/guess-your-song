@@ -1,7 +1,19 @@
 import fs from "node:fs";
 import type { FastifyInstance } from "fastify";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as acoustidService from "../../services/acoustidService";
 import { buildTestApp } from "../../test/helpers";
+
+vi.mock("../../services/acoustidService", () => ({
+    fingerprintAudio: vi.fn(),
+    lookupAcoustid: vi.fn(),
+    FpcalcMissingError: class FpcalcMissingError extends Error {
+        constructor() {
+            super("fpcalc binary not found");
+            this.name = "FpcalcMissingError";
+        }
+    },
+}));
 
 const TEST_UPLOAD_DIR = "./test-uploads";
 
@@ -997,6 +1009,42 @@ describe("search-music endpoint", () => {
         );
     });
 
+    it("appends a duration filter when duration is provided", async () => {
+        const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+            ok: true,
+            json: async () => ({ recordings: [] }),
+        } as Response);
+
+        const response = await app.inject({
+            method: "GET",
+            url: "/api/admin/songs/search-music?query=Bohemian%20Rhapsody&duration=354.5",
+            headers: { authorization: `Bearer ${token}` },
+        });
+
+        expect(response.statusCode).toBe(200);
+        const calledUrl = fetchSpy.mock.calls[0]?.[0] as string;
+        const decoded = decodeURIComponent(calledUrl);
+        // 354.5s -> 354500ms, ±3000ms tolerance
+        expect(decoded).toContain("(Bohemian Rhapsody)");
+        expect(decoded).toContain("dur:[351500 TO 357500]");
+    });
+
+    it("does not add a duration filter when duration is missing or invalid", async () => {
+        const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+            ok: true,
+            json: async () => ({ recordings: [] }),
+        } as Response);
+
+        await app.inject({
+            method: "GET",
+            url: "/api/admin/songs/search-music?query=test&duration=abc",
+            headers: { authorization: `Bearer ${token}` },
+        });
+
+        const calledUrl = fetchSpy.mock.calls[0]?.[0] as string;
+        expect(decodeURIComponent(calledUrl)).not.toContain("dur:");
+    });
+
     it("returns 400 when query is missing", async () => {
         const response = await app.inject({
             method: "GET",
@@ -1199,6 +1247,160 @@ describe("cover-art endpoint", () => {
             url: `/api/admin/songs/${song._id}/cover-art`,
             headers: { authorization: `Bearer ${token}` },
             payload: { releaseId: "rel-no-art" },
+        });
+
+        expect(response.statusCode).toBe(502);
+    });
+});
+
+describe("identify-acoustid endpoint", () => {
+    let app: FastifyInstance;
+    let token: string;
+    const fingerprintMock = vi.mocked(acoustidService.fingerprintAudio);
+    const lookupMock = vi.mocked(acoustidService.lookupAcoustid);
+
+    async function createSongWithAudio() {
+        const createRes = await app.inject({
+            method: "POST",
+            url: "/api/admin/songs",
+            headers: { authorization: `Bearer ${token}` },
+            payload: { title: "Tagless", artist: "Unknown", year: 2000 },
+        });
+        const song = createRes.json();
+        const { body, contentType } = createMultipartPayload(
+            {},
+            {
+                fieldname: "audio",
+                filename: "t.mp3",
+                content: Buffer.from("fake-audio"),
+                contentType: "audio/mpeg",
+            },
+        );
+        const audioRes = await app.inject({
+            method: "PUT",
+            url: `/api/admin/songs/${song._id}/audio`,
+            headers: {
+                authorization: `Bearer ${token}`,
+                "content-type": contentType,
+            },
+            payload: body,
+        });
+        return audioRes.json();
+    }
+
+    beforeEach(async () => {
+        app = await buildTestApp({
+            uploadDir: TEST_UPLOAD_DIR,
+            acoustidApiKey: "test-key",
+        });
+        token = await registerAndLogin(app);
+    });
+
+    afterEach(async () => {
+        fingerprintMock.mockReset();
+        lookupMock.mockReset();
+        await app.close();
+        if (fs.existsSync(TEST_UPLOAD_DIR)) {
+            fs.rmSync(TEST_UPLOAD_DIR, { recursive: true });
+        }
+    });
+
+    it("fingerprints the song and returns AcoustID matches", async () => {
+        const song = await createSongWithAudio();
+        fingerprintMock.mockResolvedValue({
+            duration: 240,
+            fingerprint: "AQADtMm",
+        });
+        lookupMock.mockResolvedValue([
+            {
+                id: "rec-1",
+                title: "Song A",
+                artist: "Artist A",
+                album: "Album A",
+                releaseId: "rel-1",
+                year: 1995,
+                score: 98,
+            },
+        ]);
+
+        const response = await app.inject({
+            method: "POST",
+            url: `/api/admin/songs/${song._id}/identify-acoustid`,
+            headers: { authorization: `Bearer ${token}` },
+        });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.json()).toHaveLength(1);
+        expect(response.json()[0].id).toBe("rec-1");
+        expect(fingerprintMock).toHaveBeenCalledWith(
+            expect.stringContaining(song.audioFilename),
+        );
+        expect(lookupMock).toHaveBeenCalledWith("test-key", {
+            duration: 240,
+            fingerprint: "AQADtMm",
+        });
+    });
+
+    it("returns 503 when AcoustID API key is not configured", async () => {
+        await app.close();
+        app = await buildTestApp({ uploadDir: TEST_UPLOAD_DIR });
+        token = await registerAndLogin(app);
+        const song = await createSongWithAudio();
+
+        const response = await app.inject({
+            method: "POST",
+            url: `/api/admin/songs/${song._id}/identify-acoustid`,
+            headers: { authorization: `Bearer ${token}` },
+        });
+
+        expect(response.statusCode).toBe(503);
+    });
+
+    it("returns 503 when fpcalc binary is missing", async () => {
+        const song = await createSongWithAudio();
+        fingerprintMock.mockRejectedValue(
+            new acoustidService.FpcalcMissingError(),
+        );
+
+        const response = await app.inject({
+            method: "POST",
+            url: `/api/admin/songs/${song._id}/identify-acoustid`,
+            headers: { authorization: `Bearer ${token}` },
+        });
+
+        expect(response.statusCode).toBe(503);
+    });
+
+    it("returns 400 when the song has no audio file", async () => {
+        const createRes = await app.inject({
+            method: "POST",
+            url: "/api/admin/songs",
+            headers: { authorization: `Bearer ${token}` },
+            payload: { title: "No Audio", artist: "X", year: 2020 },
+        });
+        const song = createRes.json();
+
+        const response = await app.inject({
+            method: "POST",
+            url: `/api/admin/songs/${song._id}/identify-acoustid`,
+            headers: { authorization: `Bearer ${token}` },
+        });
+
+        expect(response.statusCode).toBe(400);
+    });
+
+    it("returns 502 when AcoustID lookup throws", async () => {
+        const song = await createSongWithAudio();
+        fingerprintMock.mockResolvedValue({
+            duration: 100,
+            fingerprint: "fp",
+        });
+        lookupMock.mockRejectedValue(new Error("network down"));
+
+        const response = await app.inject({
+            method: "POST",
+            url: `/api/admin/songs/${song._id}/identify-acoustid`,
+            headers: { authorization: `Bearer ${token}` },
         });
 
         expect(response.statusCode).toBe(502);

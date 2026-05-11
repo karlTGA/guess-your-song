@@ -29,6 +29,7 @@ import {
     fetchCoverArt,
     getPlaylists,
     getSongs,
+    identifyByAcoustid,
     searchMusic,
     updatePlaylist,
     updateSong,
@@ -46,6 +47,7 @@ interface Song {
     year: number;
     audioFilename?: string;
     thumbnailFilename?: string;
+    duration?: number;
 }
 
 interface Playlist {
@@ -61,6 +63,27 @@ interface BatchEntry {
     year: number | undefined;
     thumbnail?: string;
     errors: { title?: string; artist?: string; year?: string };
+}
+
+// Accepts "M:SS", "MM:SS", or bare seconds. Returns seconds, or undefined if unparseable.
+function parseDurationInput(input: string): number | undefined {
+    const trimmed = input.trim();
+    if (!trimmed) return undefined;
+    const colonMatch = trimmed.match(/^(\d+):(\d{1,2})$/);
+    if (colonMatch) {
+        const seconds = Number.parseInt(colonMatch[2], 10);
+        if (seconds >= 60) return undefined;
+        return Number.parseInt(colonMatch[1], 10) * 60 + seconds;
+    }
+    const asNumber = Number.parseFloat(trimmed);
+    return Number.isFinite(asNumber) && asNumber > 0 ? asNumber : undefined;
+}
+
+function formatDuration(seconds: number | undefined): string {
+    if (!seconds || !Number.isFinite(seconds) || seconds <= 0) return "";
+    const m = Math.floor(seconds / 60);
+    const s = Math.round(seconds % 60);
+    return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
 export default function SongsPage() {
@@ -91,6 +114,7 @@ export default function SongsPage() {
     const [searchTitle, setSearchTitle] = useState("");
     const [searchArtist, setSearchArtist] = useState("");
     const [searchYear, setSearchYear] = useState("");
+    const [searchDuration, setSearchDuration] = useState("");
     const [searchResults, setSearchResults] = useState<MusicSearchResult[]>([]);
     const [searchLoading, setSearchLoading] = useState(false);
 
@@ -188,6 +212,7 @@ export default function SongsPage() {
         setSearchTitle(song.title);
         setSearchArtist(song.artist);
         setSearchYear(String(song.year));
+        setSearchDuration(formatDuration(song.duration));
         setSearchResults([]);
         setSearchMode("free");
     };
@@ -212,12 +237,32 @@ export default function SongsPage() {
                 ? buildStructuredQuery()
                 : searchQuery.trim();
         if (!query) return;
+        const duration =
+            parseDurationInput(searchDuration) ?? searchModalSong?.duration;
         setSearchLoading(true);
         try {
-            const results = await searchMusic(query);
+            const results = await searchMusic(query, duration);
             setSearchResults(results);
         } catch {
             message.error("Search failed");
+        } finally {
+            setSearchLoading(false);
+        }
+    };
+
+    const handleIdentifyByAudio = async () => {
+        if (!searchModalSong) return;
+        setSearchLoading(true);
+        try {
+            const results = await identifyByAcoustid(searchModalSong._id);
+            setSearchResults(results);
+            if (results.length === 0) {
+                message.info("No fingerprint match found");
+            }
+        } catch (err) {
+            const msg =
+                err instanceof Error ? err.message : "Identification failed";
+            message.error(msg);
         } finally {
             setSearchLoading(false);
         }
@@ -842,16 +887,37 @@ export default function SongsPage() {
                 width={720}
                 footer={null}
             >
-                <Radio.Group
-                    value={searchMode}
-                    onChange={(e) => setSearchMode(e.target.value)}
-                    style={{ marginBottom: 12 }}
-                    optionType="button"
-                    buttonStyle="solid"
+                <div
+                    style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        marginBottom: 12,
+                        gap: 8,
+                    }}
                 >
-                    <Radio value="free">Free text</Radio>
-                    <Radio value="structured">Structured</Radio>
-                </Radio.Group>
+                    <Radio.Group
+                        value={searchMode}
+                        onChange={(e) => setSearchMode(e.target.value)}
+                        optionType="button"
+                        buttonStyle="solid"
+                    >
+                        <Radio value="free">Free text</Radio>
+                        <Radio value="structured">Structured</Radio>
+                    </Radio.Group>
+                    <Button
+                        onClick={handleIdentifyByAudio}
+                        loading={searchLoading}
+                        disabled={!searchModalSong?.audioFilename}
+                        title={
+                            searchModalSong?.audioFilename
+                                ? "Fingerprint the audio file and look it up on AcoustID"
+                                : "Upload audio first to enable fingerprint identification"
+                        }
+                    >
+                        Identify by audio
+                    </Button>
+                </div>
 
                 {searchMode === "free" ? (
                     <Input.Search
@@ -891,6 +957,16 @@ export default function SongsPage() {
                                 placeholder="Year"
                                 value={searchYear}
                                 onChange={(e) => setSearchYear(e.target.value)}
+                                onPressEnter={handleSearch}
+                                style={{ flex: 1 }}
+                            />
+                            <Input
+                                aria-label="Duration"
+                                placeholder="m:ss"
+                                value={searchDuration}
+                                onChange={(e) =>
+                                    setSearchDuration(e.target.value)
+                                }
                                 onPressEnter={handleSearch}
                                 style={{ flex: 1 }}
                             />
@@ -940,6 +1016,28 @@ export default function SongsPage() {
                                     ) : null,
                             },
                             {
+                                title: "Match",
+                                dataIndex: "score",
+                                key: "score",
+                                width: 80,
+                                defaultSortOrder: "descend" as const,
+                                sorter: (
+                                    a: MusicSearchResult,
+                                    b: MusicSearchResult,
+                                ) => a.score - b.score,
+                                render: (score: number) => {
+                                    const color =
+                                        score >= 90
+                                            ? "green"
+                                            : score >= 70
+                                              ? "blue"
+                                              : score >= 50
+                                                ? "orange"
+                                                : "red";
+                                    return <Tag color={color}>{score}</Tag>;
+                                },
+                            },
+                            {
                                 title: "Title",
                                 dataIndex: "title",
                                 key: "title",
@@ -961,7 +1059,6 @@ export default function SongsPage() {
                                 title: "Year",
                                 dataIndex: "year",
                                 key: "year",
-                                defaultSortOrder: "ascend" as const,
                                 sorter: (
                                     a: MusicSearchResult,
                                     b: MusicSearchResult,

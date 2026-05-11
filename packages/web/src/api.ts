@@ -64,6 +64,7 @@ export function getSongs() {
             year: number;
             audioFilename?: string;
             thumbnailFilename?: string;
+            duration?: number;
         }[]
     >("/admin/songs");
 }
@@ -150,9 +151,20 @@ export function extractMetadata(file: File) {
     });
 }
 
-export function searchMusic(query: string) {
+export function searchMusic(query: string, duration?: number) {
+    const params = new URLSearchParams({ query });
+    if (duration && Number.isFinite(duration)) {
+        params.set("duration", String(duration));
+    }
     return request<MusicSearchResult[]>(
-        `/admin/songs/search-music?query=${encodeURIComponent(query)}`,
+        `/admin/songs/search-music?${params.toString()}`,
+    );
+}
+
+export function identifyByAcoustid(songId: string) {
+    return request<MusicSearchResult[]>(
+        `/admin/songs/${songId}/identify-acoustid`,
+        { method: "POST" },
     );
 }
 

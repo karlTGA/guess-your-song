@@ -29,6 +29,7 @@ RUN yarn workspace @guess-your-song/shared build && \
 # Production
 FROM node:20-alpine
 WORKDIR /app
+RUN apk add --no-cache chromaprint-tools
 COPY package.json yarn.lock .yarnrc.yml ./
 COPY .yarn .yarn
 COPY packages/shared/package.json packages/shared/

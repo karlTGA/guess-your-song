@@ -15,6 +15,7 @@ services:
       - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
       - UPLOAD_DIR=/app/uploads
       - WEB_DIST_DIR=/app/packages/web/dist
+      - ACOUSTID_API_KEY=${ACOUSTID_API_KEY:-}
     volumes:
       - uploads:/app/uploads
     depends_on:

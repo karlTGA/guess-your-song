@@ -6,6 +6,7 @@ export interface AppConfig {
     uploadDir: string;
     webDistDir?: string;
     maxFileSize?: number;
+    acoustidApiKey?: string;
 }
 
 export function loadConfig(): AppConfig {
@@ -18,5 +19,6 @@ export function loadConfig(): AppConfig {
         jwtSecret: process.env.JWT_SECRET || "change-me-in-production",
         uploadDir: process.env.UPLOAD_DIR || "./uploads",
         webDistDir: process.env.WEB_DIST_DIR || undefined,
+        acoustidApiKey: process.env.ACOUSTID_API_KEY || undefined,
     };
 }
